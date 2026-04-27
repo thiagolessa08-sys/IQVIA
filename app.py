@@ -485,6 +485,11 @@ def debug():
     result = {
         "use_postgres": USE_POSTGRES,
         "database_url_set": bool(os.environ.get("DATABASE_URL")),
+        "database_url_preview": (DATABASE_URL[:40] + "...") if len(DATABASE_URL) > 40 else DATABASE_URL,
+        "pghost": os.environ.get("PGHOST", ""),
+        "pgport": os.environ.get("PGPORT", ""),
+        "pguser": os.environ.get("PGUSER", ""),
+        "pgdatabase": os.environ.get("PGDATABASE", ""),
         "table_prescricoes": False,
         "row_count": 0,
         "error": None
