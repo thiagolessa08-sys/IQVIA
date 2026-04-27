@@ -106,6 +106,7 @@ def logout():
 
 # ── Init prescrições ──────────────────────────────────────────────────────
 PRESCRICOES_CSV = os.path.join(os.path.dirname(__file__), "data", "prescricoes.csv")
+os.makedirs(os.path.join(os.path.dirname(__file__), "data"), exist_ok=True)
 
 def init_prescricoes():
     if table_exists("prescricoes"):
@@ -130,7 +131,10 @@ def init_prescricoes():
     _df_to_table(df, "prescricoes")
     print(f"[init] {len(df)} linhas carregadas.")
 
-init_prescricoes()
+try:
+    init_prescricoes()
+except Exception as e:
+    print(f"[init] Aviso: {e}")
 
 # ── Helpers de filtro ─────────────────────────────────────────────────────
 def build_filters(args):
