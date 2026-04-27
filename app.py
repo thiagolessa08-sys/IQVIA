@@ -10,8 +10,16 @@ app.secret_key = os.environ.get("SECRET_KEY", "iqvia-pharma-2026-xK9m")
 app.config["MAX_CONTENT_LENGTH"] = 300 * 1024 * 1024  # 300 MB
 DB_PATH = os.path.join(os.path.dirname(__file__), "data", "iqvia.db")
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "")
-USE_POSTGRES = bool(DATABASE_URL)
+_h  = os.environ.get("PGHOST", "")
+_p  = os.environ.get("PGPORT", "5432")
+_u  = os.environ.get("PGUSER", "")
+_pw = os.environ.get("PGPASSWORD", "")
+_db = os.environ.get("PGDATABASE", "")
+if _h and _u:
+    DATABASE_URL = f"postgresql://{_u}:{_pw}@{_h}:{_p}/{_db}"
+else:
+    DATABASE_URL = os.environ.get("DATABASE_URL", "")
+USE_POSTGRES = DATABASE_URL.startswith(("postgresql://", "postgres://"))
 
 # ── DB Layer (SQLAlchemy + pg8000, sem dependência de libpq) ──────────────
 _engine = None
