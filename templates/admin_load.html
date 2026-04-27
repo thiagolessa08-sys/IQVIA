@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Carga de Dados</title>
+<style>
+  :root {
+    --bg: #080e1c; --surface: #0f1a2e; --card: #162033;
+    --border: #1e3a5f; --blue: #3b82f6; --green: #10b981;
+    --yellow: #f59e0b; --red: #ef4444; --text: #e2e8f0; --muted: #64748b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif;
+         min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
+
+  .container { width: 100%; max-width: 520px; }
+
+  .logo { font-size: 22px; font-weight: 700; color: var(--blue); letter-spacing: 1px; margin-bottom: 6px; }
+  .subtitle { font-size: 13px; color: var(--muted); margin-bottom: 32px; }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 32px; }
+  .card-title { font-size: 16px; font-weight: 700; margin-bottom: 24px; }
+
+  .status-box {
+    border-radius: 8px; padding: 14px 18px; margin-bottom: 20px;
+    font-size: 13px; display: flex; align-items: center; gap: 10px;
+  }
+  .status-ok     { background: rgba(16,185,129,.1); border: 1px solid rgba(16,185,129,.3); color: #34d399; }
+  .status-warn   { background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.3); color: #fbbf24; }
+  .status-error  { background: rgba(239,68,68,.1);  border: 1px solid rgba(239,68,68,.3);  color: #f87171; }
+
+  label { display: block; font-size: 12px; font-weight: 600; color: var(--muted);
+          text-transform: uppercase; letter-spacing: .5px; margin-bottom: 7px; }
+
+  input[type="text"], input[type="password"] {
+    width: 100%; background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); padding: 10px 14px; border-radius: 8px; font-size: 14px;
+    outline: none; transition: border-color .2s; margin-bottom: 18px;
+  }
+  input:focus { border-color: var(--blue); }
+
+  .file-zone {
+    border: 2px dashed var(--border); border-radius: 8px; padding: 32px 20px;
+    text-align: center; cursor: pointer; transition: all .2s; margin-bottom: 18px;
+    position: relative;
+  }
+  .file-zone:hover, .file-zone.drag { border-color: var(--blue); background: rgba(59,130,246,.05); }
+  .file-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+  .file-icon { font-size: 32px; margin-bottom: 8px; }
+  .file-label { font-size: 14px; color: var(--muted); }
+  .file-label strong { color: var(--blue); }
+  .file-name { font-size: 13px; color: var(--green); margin-top: 6px; font-weight: 600; }
+
+  .btn {
+    width: 100%; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 700;
+    cursor: pointer; border: none; transition: all .2s;
+  }
+  .btn-primary { background: var(--blue); color: #fff; }
+  .btn-primary:hover { background: #2563eb; }
+  .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+
+  .progress { display: none; margin-top: 16px; }
+  .progress-bar-wrap { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
+  .progress-bar { height: 100%; background: var(--blue); border-radius: 3px; animation: indeterminate 1.5s infinite; }
+  @keyframes indeterminate { 0% { margin-left: -40%; width: 40%; } 100% { margin-left: 100%; width: 40%; } }
+  .progress-text { font-size: 13px; color: var(--muted); text-align: center; }
+
+  .nav-back { margin-top: 20px; text-align: center; font-size: 13px; }
+  .nav-back a { color: var(--muted); text-decoration: none; }
+  .nav-back a:hover { color: var(--text); }
+
+  .info-row { display: flex; justify-content: space-between; font-size: 13px; padding: 8px 0; border-bottom: 1px solid rgba(30,58,95,.4); }
+  .info-row:last-child { border-bottom: none; }
+  .info-val { font-weight: 600; color: var(--text); }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="logo">IQVIA</div>
+  <div class="subtitle">Painel Administrativo — Carga de Dados</div>
+
+  <div class="card">
+    <div class="card-title">Status do Banco de Dados</div>
+
+    {% if table_exists %}
+    <div class="status-box status-ok">
+      ✓ Tabela <strong>prescricoes</strong> carregada — {{ "{:,}".format(row_count).replace(",",".") }} linhas
+    </div>
+    {% else %}
+    <div class="status-box status-warn">
+      ⚠ Tabela <strong>prescricoes</strong> ainda não foi carregada
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="status-box status-ok">
+      ✓ Carga concluída com sucesso — {{ "{:,}".format(row_count).replace(",",".") }} linhas importadas!
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="status-box status-error">✕ {{ error }}</div>
+    {% endif %}
+
+    <div style="margin-bottom:24px">
+      <div class="info-row"><span style="color:var(--muted)">Formato aceito</span><span class="info-val">CSV (até 300 MB)</span></div>
+      <div class="info-row"><span style="color:var(--muted)">Colunas esperadas</span><span class="info-val">CRM, Médico, Período, Canal, Brick...</span></div>
+      <div class="info-row"><span style="color:var(--muted)">Comportamento</span><span class="info-val">Substitui dados anteriores</span></div>
+    </div>
+
+    <form method="POST" enctype="multipart/form-data" onsubmit="startUpload()">
+      <label>Chave de Admin</label>
+      <input type="password" name="admin_key" placeholder="Chave de acesso admin" required autocomplete="off">
+
+      <label>Arquivo CSV</label>
+      <div class="file-zone" id="fileZone">
+        <input type="file" name="csv_file" accept=".csv" required onchange="showFileName(this)">
+        <div class="file-icon">📂</div>
+        <div class="file-label">Arraste o CSV aqui ou <strong>clique para selecionar</strong></div>
+        <div class="file-name" id="fileName"></div>
+      </div>
+
+      <button class="btn btn-primary" type="submit" id="submitBtn">
+        Carregar Dados no Banco
+      </button>
+
+      <div class="progress" id="progress">
+        <div class="progress-bar-wrap"><div class="progress-bar"></div></div>
+        <div class="progress-text">Enviando e processando o arquivo — pode levar alguns minutos...</div>
+      </div>
+    </form>
+  </div>
+
+  <div class="nav-back">
+    <a href="/market">← Voltar para o painel</a>
+  </div>
+</div>
+
+<script>
+function showFileName(input) {
+  const name = input.files[0]?.name || '';
+  document.getElementById('fileName').textContent = name;
+  const size = input.files[0]?.size || 0;
+  if (size) {
+    document.getElementById('fileName').textContent =
+      name + ' (' + (size / 1024 / 1024).toFixed(1) + ' MB)';
+  }
+}
+
+function startUpload() {
+  document.getElementById('submitBtn').disabled = true;
+  document.getElementById('submitBtn').textContent = 'Processando...';
+  document.getElementById('progress').style.display = 'block';
+}
+
+const zone = document.getElementById('fileZone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+zone.addEventListener('drop', () => zone.classList.remove('drag'));
+</script>
+</body>
+</html>

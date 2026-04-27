@@ -6,6 +6,7 @@ import pandas as pd
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "iqvia-pharma-2026-xK9m")
+app.config["MAX_CONTENT_LENGTH"] = 300 * 1024 * 1024  # 300 MB
 DB_PATH = os.path.join(os.path.dirname(__file__), "data", "iqvia.db")
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
@@ -409,6 +410,58 @@ def chat():
                 data["queries_executed"] = queries_run
             return jsonify(data), resp.status_code
     return jsonify(data), 200
+
+# ── Admin: carga de dados ─────────────────────────────────────────────────
+ADMIN_KEY = os.environ.get("ADMIN_KEY", "iqvia-admin-2026")
+
+@app.route("/admin/load", methods=["GET"])
+@login_required
+def admin_load_page():
+    exists = table_exists("prescricoes")
+    count  = query("SELECT COUNT(*) AS cnt FROM prescricoes")[0]["cnt"] if exists else 0
+    return render_template("admin_load.html", table_exists=exists, row_count=count)
+
+@app.route("/admin/load", methods=["POST"])
+@login_required
+def admin_load_post():
+    key = request.form.get("admin_key", "")
+    if key != ADMIN_KEY:
+        return render_template("admin_load.html", error="Chave de admin incorreta.",
+                               table_exists=False, row_count=0)
+
+    f = request.files.get("csv_file")
+    if not f or not f.filename.lower().endswith(".csv"):
+        return render_template("admin_load.html", error="Envie um arquivo .csv válido.",
+                               table_exists=False, row_count=0)
+
+    tmp_path = os.path.join(os.path.dirname(__file__), "data", "_upload_tmp.csv")
+    try:
+        f.save(tmp_path)
+        loaded = 0
+        for enc in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
+            try:
+                df = pd.read_csv(tmp_path, skiprows=1, encoding=enc, header=0)
+                break
+            except UnicodeDecodeError:
+                continue
+
+        df.columns = ["crm","medico","periodo","canal","brick","cidade","estado",
+                      "laboratorio","marca","molecula","qtde_med","qtde_rec"]
+        df["molecula"] = df["molecula"].str.strip()
+        df["periodo"]  = df["periodo"].astype(str)
+        df["qtde_med"] = pd.to_numeric(df["qtde_med"], errors="coerce").fillna(0).astype(int)
+        df["qtde_rec"] = pd.to_numeric(df["qtde_rec"], errors="coerce").fillna(0).astype(int)
+        loaded = len(df)
+        _df_to_table(df, "prescricoes")
+    except Exception as e:
+        return render_template("admin_load.html", error=f"Erro ao processar: {e}",
+                               table_exists=False, row_count=0)
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+    return render_template("admin_load.html", success=True, row_count=loaded,
+                           table_exists=True)
 
 # ── Pages ─────────────────────────────────────────────────────────────────
 @app.route("/")
