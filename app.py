@@ -467,6 +467,25 @@ def admin_load_post():
     return render_template("admin_load.html", success=True, row_count=loaded,
                            table_exists=True)
 
+# ── Debug ────────────────────────────────────────────────────────────────
+@app.route("/api/debug")
+def debug():
+    result = {
+        "use_postgres": USE_POSTGRES,
+        "database_url_set": bool(os.environ.get("DATABASE_URL")),
+        "table_prescricoes": False,
+        "row_count": 0,
+        "error": None
+    }
+    try:
+        result["table_prescricoes"] = table_exists("prescricoes")
+        if result["table_prescricoes"]:
+            r = query("SELECT COUNT(*) AS cnt FROM prescricoes")
+            result["row_count"] = r[0]["cnt"]
+    except Exception as e:
+        result["error"] = str(e)
+    return jsonify(result)
+
 # ── Pages ─────────────────────────────────────────────────────────────────
 @app.route("/")
 @login_required
