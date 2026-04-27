@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prescritores — IQVIA</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:       #080e1c;
+    --surface:  #0f1a2e;
+    --card:     #162033;
+    --border:   #1e3a5f;
+    --blue:     #3b82f6;
+    --purple:   #8b5cf6;
+    --green:    #10b981;
+    --yellow:   #f59e0b;
+    --red:      #ef4444;
+    --cyan:     #06b6d4;
+    --text:     #e2e8f0;
+    --muted:    #64748b;
+    --radius:   10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+  nav {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 0 24px; height: 56px; display: flex; align-items: center; gap: 32px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .nav-logo { font-weight: 700; font-size: 18px; letter-spacing: 1px; color: var(--blue); }
+  .nav-links { display: flex; gap: 4px; flex: 1; }
+  .nav-links a {
+    color: var(--muted); text-decoration: none; padding: 6px 14px;
+    border-radius: 6px; font-size: 14px; font-weight: 500; transition: all .2s;
+  }
+  .nav-links a:hover { color: var(--text); background: rgba(255,255,255,.06); }
+  .nav-links a.active { color: var(--purple); background: rgba(139,92,246,.12); }
+  .nav-user { margin-left: auto; display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--muted); }
+  .nav-user a { color: var(--muted); text-decoration: none; padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; transition: all .2s; }
+  .nav-user a:hover { color: var(--text); border-color: var(--blue); }
+
+  .filters {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 12px 24px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  }
+  .filter-label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; white-space: nowrap; }
+  select, .btn {
+    background: var(--card); border: 1px solid var(--border); color: var(--text);
+    padding: 7px 12px; border-radius: 7px; font-size: 13px; cursor: pointer; outline: none; transition: border-color .2s;
+  }
+  select:hover, select:focus { border-color: var(--purple); }
+  .btn { font-weight: 600; padding: 7px 18px; }
+  .btn-primary { background: var(--purple); border-color: var(--purple); color: #fff; }
+  .btn-primary:hover { background: #7c3aed; }
+  .btn-ghost { background: transparent; }
+  .btn-ghost:hover { background: rgba(255,255,255,.06); }
+  .filter-sep { width: 1px; height: 24px; background: var(--border); }
+
+  main { padding: 24px; max-width: 1600px; margin: 0 auto; }
+
+  /* TABS */
+  .page-tabs { display: flex; gap: 4px; margin-bottom: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 5px; width: fit-content; }
+  .page-tab {
+    padding: 8px 22px; border-radius: 7px; font-size: 14px; font-weight: 600;
+    cursor: pointer; border: none; background: transparent; color: var(--muted); transition: all .2s;
+  }
+  .page-tab.active { background: var(--purple); color: #fff; }
+  .page-tab:hover:not(.active) { color: var(--text); }
+
+  /* KPIs */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+  .kpi-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px 20px; position: relative; overflow: hidden;
+  }
+  .kpi-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--accent, var(--purple));
+  }
+  .kpi-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; font-weight: 600; margin-bottom: 8px; }
+  .kpi-value { font-size: 26px; font-weight: 700; color: var(--text); line-height: 1; }
+  .kpi-sub   { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* CARD */
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+  .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .card-title { font-size: 14px; font-weight: 600; color: var(--text); }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; max-height: 520px; overflow-y: auto; }
+  .table-wrap::-webkit-scrollbar { width: 6px; height: 6px; }
+  .table-wrap::-webkit-scrollbar-track { background: transparent; }
+  .table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th { position: sticky; top: 0; background: var(--card); z-index: 2; }
+  th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--border); }
+  td { padding: 10px 14px; border-bottom: 1px solid rgba(30,58,95,.4); vertical-align: middle; }
+  tr:hover td { background: rgba(255,255,255,.03); cursor: pointer; }
+  tr:last-child td { border-bottom: none; }
+  .rank { font-weight: 700; color: var(--muted); font-size: 12px; }
+  .rank-top { color: var(--yellow); }
+  .medico-name { font-weight: 600; color: var(--text); }
+  .medico-loc  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .badge-blue   { background: rgba(59,130,246,.15);  color: #60a5fa; }
+  .badge-green  { background: rgba(16,185,129,.15);  color: #34d399; }
+  .badge-yellow { background: rgba(245,158,11,.15);  color: #fbbf24; }
+  .badge-red    { background: rgba(239,68,68,.15);   color: #f87171; }
+  .badge-purple { background: rgba(139,92,246,.15);  color: #a78bfa; }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 200;
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 28px; max-width: 760px; width: 100%;
+    max-height: 85vh; overflow-y: auto;
+  }
+  .modal-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+  .modal-title  { font-size: 18px; font-weight: 700; }
+  .modal-sub    { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .modal-close  { background: transparent; border: 1px solid var(--border); color: var(--muted); width: 32px; height: 32px; border-radius: 8px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all .2s; }
+  .modal-close:hover { color: var(--text); border-color: var(--blue); }
+  .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .modal-stat { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+  .modal-stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 600; margin-bottom: 6px; }
+  .modal-stat-value { font-size: 22px; font-weight: 700; }
+
+  /* OPORTUNIDADES */
+  .oport-info {
+    background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.25);
+    border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; font-size: 13px; color: #fbbf24;
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  /* LOADING */
+  .loading { display: flex; align-items: center; justify-content: center; gap: 10px; height: 200px; color: var(--muted); font-size: 14px; }
+  .spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--purple); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .empty { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 14px; }
+
+  @media (max-width: 900px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-logo">IQVIA</span>
+  <div class="nav-links">
+    <a href="/market">Market Intelligence</a>
+    <a href="/prescritores" class="active">Prescritores</a>
+    <a href="/chat">Chat IA</a>
+  </div>
+  <div class="nav-user">
+    <a href="/logout">Sair</a>
+  </div>
+</nav>
+
+<div class="filters">
+  <span class="filter-label">Filtros</span>
+  <select id="fMolecula" onchange="onMoleculaChange()"><option value="">Todas as moléculas</option></select>
+  <select id="fLaboratorio"><option value="">Todos os laboratórios</option></select>
+  <select id="fEstado" onchange="onEstadoChange()"><option value="">Todos os estados</option></select>
+  <select id="fCidade"><option value="">Todas as cidades</option></select>
+  <div class="filter-sep"></div>
+  <span class="filter-label">Período</span>
+  <select id="fPeriodoIni"><option value="">De</option></select>
+  <select id="fPeriodoFim"><option value="">Até</option></select>
+  <div class="filter-sep"></div>
+  <button class="btn btn-primary" onclick="applyFilters()">Aplicar</button>
+  <button class="btn btn-ghost" onclick="clearFilters()">Limpar</button>
+</div>
+
+<main>
+  <div class="page-tabs">
+    <button class="page-tab active" onclick="switchTab('ranking', this)">Ranking de Prescritores</button>
+    <button class="page-tab" onclick="switchTab('oportunidades', this)">Oportunidades</button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpis">
+    <div class="kpi-card" style="--accent:var(--purple)">
+      <div class="kpi-label">Médicos Ativos</div>
+      <div class="kpi-value" id="kpiMedicos">—</div>
+      <div class="kpi-sub">prescritores</div>
+    </div>
+    <div class="kpi-card" style="--accent:var(--blue)">
+      <div class="kpi-label">Total Receitas</div>
+      <div class="kpi-value" id="kpiReceitas">—</div>
+      <div class="kpi-sub">prescrições</div>
+    </div>
+    <div class="kpi-card" style="--accent:var(--green)">
+      <div class="kpi-label">Média / Médico</div>
+      <div class="kpi-value" id="kpiMedia">—</div>
+      <div class="kpi-sub">receitas por médico</div>
+    </div>
+    <div class="kpi-card" style="--accent:var(--yellow)">
+      <div class="kpi-label">Oportunidades</div>
+      <div class="kpi-value" id="kpiOport">—</div>
+      <div class="kpi-sub">médicos a conquistar</div>
+    </div>
+  </div>
+
+  <!-- RANKING TAB -->
+  <div id="tabRanking">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Top Prescritores</span>
+        <span id="rankCount" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+      <div class="table-wrap" id="rankingTable">
+        <div class="loading"><div class="spinner"></div> Carregando...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OPORTUNIDADES TAB -->
+  <div id="tabOportunidades" style="display:none">
+    <div class="oport-info" id="oportunidadesInfo">
+      ⚠ Selecione uma <strong>Molécula</strong> e um <strong>Laboratório</strong> nos filtros para ver médicos que prescrevem a molécula mas ainda não prescrevem sua marca.
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title" id="oportunidadesTitulo">Médicos a Conquistar</span>
+        <span id="oportunidadesCount" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+      <div class="table-wrap" id="oportunidadesTable">
+        <div class="empty">Aplique os filtros para ver as oportunidades.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- MODAL PERFIL -->
+<div class="modal-overlay hidden" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="modalName">—</div>
+        <div class="modal-sub" id="modalLoc">—</div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-grid">
+      <div class="modal-stat">
+        <div class="modal-stat-label">Total Receitas</div>
+        <div class="modal-stat-value" id="modalReceitas">—</div>
+      </div>
+      <div class="modal-stat">
+        <div class="modal-stat-label">Total Medicamentos</div>
+        <div class="modal-stat-value" id="modalMeds">—</div>
+      </div>
+    </div>
+    <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">
+      Prescrições por Laboratório / Marca
+    </div>
+    <div class="table-wrap" id="modalTable">
+      <div class="loading"><div class="spinner"></div></div>
+    </div>
+    <div style="margin-top:20px;">
+      <canvas id="modalChart" height="180"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentTab = 'ranking';
+let modalChart = null;
+
+function fmt(n) {
+  if (n == null) return '—';
+  if (n >= 1e6) return (n/1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
+  return n.toLocaleString('pt-BR');
+}
+
+async function get(url) { return (await fetch(url)).json(); }
+
+function params() {
+  const p = new URLSearchParams();
+  const v = id => document.getElementById(id).value;
+  if (v('fMolecula'))    p.set('molecula',    v('fMolecula'));
+  if (v('fLaboratorio')) p.set('laboratorio', v('fLaboratorio'));
+  if (v('fEstado'))      p.set('estado',      v('fEstado'));
+  if (v('fCidade'))      p.set('cidade',      v('fCidade'));
+  if (v('fPeriodoIni'))  p.set('periodo_ini', v('fPeriodoIni'));
+  if (v('fPeriodoFim'))  p.set('periodo_fim', v('fPeriodoFim'));
+  return p;
+}
+
+function populateSelect(id, items, placeholder) {
+  const sel = document.getElementById(id);
+  const cur = sel.value;
+  sel.innerHTML = `<option value="">${placeholder}</option>` +
+    items.map(v => `<option value="${v}"${v===cur?' selected':''}>${v}</option>`).join('');
+}
+
+async function loadFilters() {
+  const [mols, labs, estados, periodos] = await Promise.all([
+    get('/api/filters/moleculas'), get('/api/filters/laboratorios'),
+    get('/api/filters/estados'),   get('/api/filters/periodos'),
+  ]);
+  populateSelect('fMolecula',    mols,    'Todas as moléculas');
+  populateSelect('fLaboratorio', labs,    'Todos os laboratórios');
+  populateSelect('fEstado',      estados, 'Todos os estados');
+  populateSelect('fPeriodoIni',  periodos,'De');
+  populateSelect('fPeriodoFim',  periodos,'Até');
+}
+
+async function onMoleculaChange() {
+  const mol = document.getElementById('fMolecula').value;
+  const labs = await get('/api/filters/laboratorios' + (mol ? '?molecula='+encodeURIComponent(mol) : ''));
+  populateSelect('fLaboratorio', labs, 'Todos os laboratórios');
+}
+
+async function onEstadoChange() {
+  const estado = document.getElementById('fEstado').value;
+  const cidades = await get('/api/filters/cidades' + (estado ? '?estado='+encodeURIComponent(estado) : ''));
+  populateSelect('fCidade', cidades, 'Todas as cidades');
+}
+
+function clearFilters() {
+  ['fMolecula','fLaboratorio','fEstado','fCidade','fPeriodoIni','fPeriodoFim'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  loadAll();
+}
+
+function applyFilters() { loadAll(); }
+
+function switchTab(tab, el) {
+  currentTab = tab;
+  document.querySelectorAll('.page-tab').forEach(b => b.classList.toggle('active', b===el));
+  document.getElementById('tabRanking').style.display       = tab === 'ranking'       ? '' : 'none';
+  document.getElementById('tabOportunidades').style.display = tab === 'oportunidades' ? '' : 'none';
+  if (tab === 'oportunidades') loadOportunidades();
+}
+
+// ── Ranking ───────────────────────────────────────────────────────────────
+async function loadRanking() {
+  document.getElementById('rankingTable').innerHTML = '<div class="loading"><div class="spinner"></div> Carregando...</div>';
+  const p = new URLSearchParams(params());
+  p.set('limit', '200');
+  const data = await get('/api/prescritores/ranking?' + p);
+
+  const total = data.reduce((s,r) => s + r.total_receitas, 0);
+  const media = data.length ? Math.round(total / data.length) : 0;
+
+  document.getElementById('kpiMedicos').textContent  = fmt(data.length);
+  document.getElementById('kpiReceitas').textContent = fmt(total);
+  document.getElementById('kpiMedia').textContent    = fmt(media);
+  document.getElementById('rankCount').textContent   = `${data.length} médicos`;
+
+  if (!data.length) {
+    document.getElementById('rankingTable').innerHTML = '<div class="empty">Nenhum resultado encontrado.</div>';
+    return;
+  }
+
+  const rows = data.map((r, i) => `
+    <tr onclick="openModal('${r.crm}')">
+      <td><span class="rank ${i<3?'rank-top':''}">${i+1}</span></td>
+      <td>
+        <div class="medico-name">${r.medico || '—'}</div>
+        <div class="medico-loc">${r.crm}</div>
+      </td>
+      <td><div>${r.cidade || '—'}</div><div style="font-size:11px;color:var(--muted)">${r.estado || ''}</div></td>
+      <td><strong>${fmt(r.total_receitas)}</strong></td>
+      <td>${fmt(r.total_medicamentos)}</td>
+      <td><span class="badge badge-blue">${r.qtde_labs}</span></td>
+      <td><span class="badge badge-purple">${r.qtde_marcas}</span></td>
+    </tr>`).join('');
+
+  document.getElementById('rankingTable').innerHTML = `
+    <table>
+      <thead><tr>
+        <th>#</th><th>Médico</th><th>Localização</th>
+        <th>Receitas</th><th>Medicamentos</th><th>Labs</th><th>Marcas</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+// ── Oportunidades ─────────────────────────────────────────────────────────
+async function loadOportunidades() {
+  const mol = document.getElementById('fMolecula').value;
+  const lab = document.getElementById('fLaboratorio').value;
+
+  if (!mol || !lab) {
+    document.getElementById('oportunidadesInfo').style.display = '';
+    document.getElementById('oportunidadesTable').innerHTML    = '<div class="empty">Selecione molécula e laboratório nos filtros.</div>';
+    document.getElementById('kpiOport').textContent = '—';
+    return;
+  }
+
+  document.getElementById('oportunidadesInfo').style.display = 'none';
+  document.getElementById('oportunidadesTitulo').textContent =
+    `Médicos que prescrevem ${mol.trim()} sem usar ${lab}`;
+  document.getElementById('oportunidadesTable').innerHTML =
+    '<div class="loading"><div class="spinner"></div> Carregando...</div>';
+
+  const data = await get('/api/prescritores/oportunidades?' + params());
+  document.getElementById('kpiOport').textContent = fmt(data.length);
+  document.getElementById('oportunidadesCount').textContent = `${data.length} oportunidades`;
+
+  if (!data.length) {
+    document.getElementById('oportunidadesTable').innerHTML =
+      '<div class="empty">Nenhuma oportunidade encontrada com os filtros selecionados.</div>';
+    return;
+  }
+
+  const rows = data.map((r, i) => `
+    <tr onclick="openModal('${r.crm}')">
+      <td><span class="rank ${i<3?'rank-top':''}">${i+1}</span></td>
+      <td>
+        <div class="medico-name">${r.medico || '—'}</div>
+        <div class="medico-loc">${r.crm}</div>
+      </td>
+      <td><div>${r.cidade || '—'}</div><div style="font-size:11px;color:var(--muted)">${r.estado || ''}</div></td>
+      <td>${r.brick || '—'}</td>
+      <td><strong>${fmt(r.total_receitas)}</strong></td>
+      <td>${fmt(r.total_medicamentos)}</td>
+      <td><span class="badge badge-yellow">${r.qtde_labs}</span></td>
+    </tr>`).join('');
+
+  document.getElementById('oportunidadesTable').innerHTML = `
+    <table>
+      <thead><tr>
+        <th>#</th><th>Médico</th><th>Localização</th><th>Brick</th>
+        <th>Receitas</th><th>Medicamentos</th><th>Labs Concorrentes</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+// ── Modal Perfil ──────────────────────────────────────────────────────────
+async function openModal(crm) {
+  document.getElementById('modalOverlay').classList.remove('hidden');
+  document.getElementById('modalName').textContent = 'Carregando...';
+  document.getElementById('modalLoc').textContent  = '';
+  document.getElementById('modalTable').innerHTML  = '<div class="loading"><div class="spinner"></div></div>';
+
+  const d = await get(`/api/prescritores/perfil/${crm}`);
+  const info = d.info || {};
+  const presc = d.prescricoes || [];
+
+  document.getElementById('modalName').textContent     = info.medico || crm;
+  document.getElementById('modalLoc').textContent      = [info.cidade, info.estado, info.brick].filter(Boolean).join(' · ');
+  document.getElementById('modalReceitas').textContent = fmt(info.total_receitas);
+  document.getElementById('modalMeds').textContent     = fmt(info.total_medicamentos);
+
+  // Agrupa por laboratorio
+  const labMap = {};
+  presc.forEach(p => {
+    if (!labMap[p.laboratorio]) labMap[p.laboratorio] = 0;
+    labMap[p.laboratorio] += p.receitas;
+  });
+  const labs = Object.entries(labMap).sort((a,b) => b[1]-a[1]).slice(0,10);
+
+  const colors = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#84cc16','#f97316','#6366f1'];
+  if (modalChart) modalChart.destroy();
+  modalChart = new Chart(document.getElementById('modalChart'), {
+    type: 'bar',
+    data: {
+      labels: labs.map(l => l[0]),
+      datasets: [{ label: 'Receitas', data: labs.map(l => l[1]), backgroundColor: colors, borderRadius: 5 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#64748b', font: {size:11} } },
+        y: { grid: { color: 'rgba(30,58,95,.4)' }, ticks: { color: '#64748b', font: {size:11}, callback: v => fmt(v) } }
+      }
+    }
+  });
+
+  const rows = presc.slice(0,30).map(p => `
+    <tr>
+      <td>${p.laboratorio || '—'}</td>
+      <td>${p.marca || '—'}</td>
+      <td>${p.molecula?.trim() || '—'}</td>
+      <td>${p.periodo}</td>
+      <td><strong>${fmt(p.receitas)}</strong></td>
+    </tr>`).join('');
+
+  document.getElementById('modalTable').innerHTML = `
+    <table>
+      <thead><tr><th>Laboratório</th><th>Marca</th><th>Molécula</th><th>Período</th><th>Receitas</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.add('hidden');
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+async function loadAll() {
+  await loadRanking();
+  if (currentTab === 'oportunidades') await loadOportunidades();
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadFilters();
+  await loadAll();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Market Intelligence — IQVIA</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:       #080e1c;
+    --surface:  #0f1a2e;
+    --card:     #162033;
+    --border:   #1e3a5f;
+    --blue:     #3b82f6;
+    --purple:   #8b5cf6;
+    --green:    #10b981;
+    --yellow:   #f59e0b;
+    --red:      #ef4444;
+    --cyan:     #06b6d4;
+    --text:     #e2e8f0;
+    --muted:    #64748b;
+    --radius:   10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+  /* NAV */
+  nav {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .nav-logo { font-weight: 700; font-size: 18px; letter-spacing: 1px; color: var(--blue); }
+  .nav-links { display: flex; gap: 4px; flex: 1; }
+  .nav-links a {
+    color: var(--muted); text-decoration: none; padding: 6px 14px;
+    border-radius: 6px; font-size: 14px; font-weight: 500; transition: all .2s;
+  }
+  .nav-links a:hover { color: var(--text); background: rgba(255,255,255,.06); }
+  .nav-links a.active { color: var(--blue); background: rgba(59,130,246,.12); }
+  .nav-user { margin-left: auto; display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--muted); }
+  .nav-user a { color: var(--muted); text-decoration: none; padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; transition: all .2s; }
+  .nav-user a:hover { color: var(--text); border-color: var(--blue); }
+
+  /* FILTERS */
+  .filters {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  }
+  .filter-label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; white-space: nowrap; }
+  select, .btn {
+    background: var(--card); border: 1px solid var(--border); color: var(--text);
+    padding: 7px 12px; border-radius: 7px; font-size: 13px; cursor: pointer; outline: none;
+    transition: border-color .2s;
+  }
+  select:hover, select:focus { border-color: var(--blue); }
+  .btn { font-weight: 600; padding: 7px 18px; }
+  .btn-primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .btn-primary:hover { background: #2563eb; }
+  .btn-ghost { background: transparent; }
+  .btn-ghost:hover { background: rgba(255,255,255,.06); }
+  .filter-sep { width: 1px; height: 24px; background: var(--border); }
+
+  /* MAIN */
+  main { padding: 24px; max-width: 1600px; margin: 0 auto; }
+
+  /* KPIs */
+  .kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; margin-bottom: 24px; }
+  .kpi-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px 20px;
+    position: relative; overflow: hidden;
+  }
+  .kpi-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--accent, var(--blue));
+  }
+  .kpi-card .kpi-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; font-weight: 600; margin-bottom: 8px; }
+  .kpi-card .kpi-value { font-size: 26px; font-weight: 700; color: var(--text); line-height: 1; }
+  .kpi-card .kpi-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* GRID */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+  .grid-60-40 { display: grid; grid-template-columns: 60fr 40fr; gap: 18px; margin-bottom: 18px; }
+
+  /* CARDS */
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px;
+  }
+  .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .card-title { font-size: 14px; font-weight: 600; color: var(--text); }
+  .card-actions { display: flex; gap: 6px; }
+  .tab-btn {
+    background: transparent; border: 1px solid var(--border); color: var(--muted);
+    padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: all .2s;
+  }
+  .tab-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .tab-btn:hover:not(.active) { color: var(--text); }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--border); }
+  td { padding: 10px 14px; border-bottom: 1px solid rgba(30,58,95,.4); vertical-align: middle; }
+  tr:hover td { background: rgba(255,255,255,.03); }
+  tr:last-child td { border-bottom: none; }
+
+  /* SHARE BAR */
+  .share-bar-wrap { display: flex; align-items: center; gap: 10px; }
+  .share-bar { height: 6px; border-radius: 3px; background: var(--blue); min-width: 4px; transition: width .4s; }
+  .share-pct { font-size: 12px; color: var(--muted); min-width: 44px; text-align: right; }
+
+  /* BADGE */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .badge-blue   { background: rgba(59,130,246,.15);  color: #60a5fa; }
+  .badge-green  { background: rgba(16,185,129,.15); color: #34d399; }
+  .badge-yellow { background: rgba(245,158,11,.15); color: #fbbf24; }
+
+  /* LOADING */
+  .loading { display: flex; align-items: center; justify-content: center; gap: 10px; height: 120px; color: var(--muted); font-size: 14px; }
+  .spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* RESPONSIVE */
+  @media (max-width: 1200px) { .kpis { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 900px) {
+    .grid-2, .grid-60-40, .grid-3 { grid-template-columns: 1fr; }
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-logo">IQVIA</span>
+  <div class="nav-links">
+    <a href="/market" class="active">Market Intelligence</a>
+    <a href="/prescritores">Prescritores</a>
+    <a href="/chat">Chat IA</a>
+  </div>
+  <div class="nav-user">
+    <span id="userName"></span>
+    <a href="/logout">Sair</a>
+  </div>
+</nav>
+
+<div class="filters">
+  <span class="filter-label">Filtros</span>
+  <select id="fMolecula" onchange="onMoleculaChange()"><option value="">Todas as moléculas</option></select>
+  <select id="fLaboratorio"><option value="">Todos os laboratórios</option></select>
+  <select id="fEstado" onchange="onEstadoChange()"><option value="">Todos os estados</option></select>
+  <div class="filter-sep"></div>
+  <span class="filter-label">Período</span>
+  <select id="fPeriodoIni"><option value="">De</option></select>
+  <select id="fPeriodoFim"><option value="">Até</option></select>
+  <div class="filter-sep"></div>
+  <button class="btn btn-primary" onclick="applyFilters()">Aplicar</button>
+  <button class="btn btn-ghost" onclick="clearFilters()">Limpar</button>
+</div>
+
+<main>
+  <!-- KPIs -->
+  <div class="kpis">
+    <div class="kpi-card" style="--accent: var(--blue)">
+      <div class="kpi-label">Total Receitas</div>
+      <div class="kpi-value" id="kpiReceitas">—</div>
+      <div class="kpi-sub">prescrições</div>
+    </div>
+    <div class="kpi-card" style="--accent: var(--purple)">
+      <div class="kpi-label">Medicamentos</div>
+      <div class="kpi-value" id="kpiMeds">—</div>
+      <div class="kpi-sub">unidades</div>
+    </div>
+    <div class="kpi-card" style="--accent: var(--green)">
+      <div class="kpi-label">Médicos Prescritores</div>
+      <div class="kpi-value" id="kpiMedicos">—</div>
+      <div class="kpi-sub">profissionais</div>
+    </div>
+    <div class="kpi-card" style="--accent: var(--yellow)">
+      <div class="kpi-label">Laboratórios</div>
+      <div class="kpi-value" id="kpiLabs">—</div>
+      <div class="kpi-sub">fabricantes</div>
+    </div>
+    <div class="kpi-card" style="--accent: var(--cyan)">
+      <div class="kpi-label">Marcas</div>
+      <div class="kpi-value" id="kpiMarcas">—</div>
+      <div class="kpi-sub">produtos</div>
+    </div>
+    <div class="kpi-card" style="--accent: var(--red)">
+      <div class="kpi-label">Moléculas</div>
+      <div class="kpi-value" id="kpiMols">—</div>
+      <div class="kpi-sub">princípios ativos</div>
+    </div>
+  </div>
+
+  <!-- Evolução + Share Donut -->
+  <div class="grid-60-40">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Evolução de Prescrições</span>
+      </div>
+      <canvas id="chartEvolucao" height="220"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Market Share</span>
+        <div class="card-actions">
+          <button class="tab-btn active" onclick="setShareGroup('laboratorio', this)">Lab</button>
+          <button class="tab-btn" onclick="setShareGroup('marca', this)">Marca</button>
+          <button class="tab-btn" onclick="setShareGroup('molecula', this)">Molécula</button>
+        </div>
+      </div>
+      <canvas id="chartShare" height="220"></canvas>
+    </div>
+  </div>
+
+  <!-- Tabela Share + Geográfico -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title" id="shareTblTitle">Ranking por Laboratório</span>
+      </div>
+      <div class="table-wrap" id="shareTable">
+        <div class="loading"><div class="spinner"></div> Carregando...</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Análise Geográfica</span>
+        <div class="card-actions">
+          <button class="tab-btn active" onclick="setGeoGroup('estado', this)">Estado</button>
+          <button class="tab-btn" onclick="setGeoGroup('cidade', this)">Cidade</button>
+          <button class="tab-btn" onclick="setGeoGroup('brick', this)">Brick</button>
+        </div>
+      </div>
+      <canvas id="chartGeo" height="300"></canvas>
+    </div>
+  </div>
+</main>
+
+<script>
+const COLORS = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#84cc16','#f97316','#6366f1','#14b8a6','#e879f9','#a855f7','#0ea5e9','#fb923c'];
+
+let shareGroup = 'laboratorio';
+let geoGroup   = 'estado';
+let charts     = {};
+
+function fmt(n) {
+  if (n == null) return '—';
+  if (n >= 1e6) return (n/1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
+  return n.toLocaleString('pt-BR');
+}
+
+function params() {
+  const p = new URLSearchParams();
+  const v = id => document.getElementById(id).value;
+  if (v('fMolecula'))    p.set('molecula',    v('fMolecula'));
+  if (v('fLaboratorio')) p.set('laboratorio', v('fLaboratorio'));
+  if (v('fEstado'))      p.set('estado',      v('fEstado'));
+  if (v('fPeriodoIni'))  p.set('periodo_ini', v('fPeriodoIni'));
+  if (v('fPeriodoFim'))  p.set('periodo_fim', v('fPeriodoFim'));
+  return p;
+}
+
+async function get(url) {
+  const r = await fetch(url);
+  return r.json();
+}
+
+// ── Filtros ───────────────────────────────────────────────────────────────
+async function loadFilters() {
+  const [mols, labs, estados, periodos] = await Promise.all([
+    get('/api/filters/moleculas'),
+    get('/api/filters/laboratorios'),
+    get('/api/filters/estados'),
+    get('/api/filters/periodos'),
+  ]);
+  populateSelect('fMolecula',    mols,    'Todas as moléculas');
+  populateSelect('fLaboratorio', labs,    'Todos os laboratórios');
+  populateSelect('fEstado',      estados, 'Todos os estados');
+  populateSelect('fPeriodoIni',  periodos,'De');
+  populateSelect('fPeriodoFim',  periodos,'Até');
+}
+
+function populateSelect(id, items, placeholder) {
+  const sel = document.getElementById(id);
+  const cur = sel.value;
+  sel.innerHTML = `<option value="">${placeholder}</option>` +
+    items.map(v => `<option value="${v}"${v===cur?' selected':''}>${v}</option>`).join('');
+}
+
+async function onMoleculaChange() {
+  const mol = document.getElementById('fMolecula').value;
+  const labs = await get('/api/filters/laboratorios' + (mol ? '?molecula='+encodeURIComponent(mol) : ''));
+  populateSelect('fLaboratorio', labs, 'Todos os laboratórios');
+}
+
+async function onEstadoChange() {
+  // could filter cities later
+}
+
+function clearFilters() {
+  ['fMolecula','fLaboratorio','fEstado','fPeriodoIni','fPeriodoFim'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  loadAll();
+}
+
+function applyFilters() { loadAll(); }
+
+// ── KPIs ──────────────────────────────────────────────────────────────────
+async function loadKPIs() {
+  const d = await get('/api/market/kpis?' + params());
+  document.getElementById('kpiReceitas').textContent = fmt(d.total_receitas);
+  document.getElementById('kpiMeds').textContent     = fmt(d.total_medicamentos);
+  document.getElementById('kpiMedicos').textContent  = fmt(d.qtde_medicos);
+  document.getElementById('kpiLabs').textContent     = fmt(d.qtde_laboratorios);
+  document.getElementById('kpiMarcas').textContent   = fmt(d.qtde_marcas);
+  document.getElementById('kpiMols').textContent     = fmt(d.qtde_moleculas);
+}
+
+// ── Evolução ──────────────────────────────────────────────────────────────
+async function loadEvolucao() {
+  const data = await get('/api/market/evolucao?' + params());
+  const labels  = data.map(r => {
+    const p = String(r.periodo);
+    return p.slice(0,4) + '/' + p.slice(4);
+  });
+  const values  = data.map(r => r.receitas);
+
+  if (charts.evolucao) charts.evolucao.destroy();
+  charts.evolucao = new Chart(document.getElementById('chartEvolucao'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Receitas',
+        data: values,
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59,130,246,.1)',
+        borderWidth: 2,
+        fill: true,
+        tension: .4,
+        pointRadius: 3,
+        pointBackgroundColor: '#3b82f6',
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(30,58,95,.4)' }, ticks: { color: '#64748b', font: { size: 11 } } },
+        y: { grid: { color: 'rgba(30,58,95,.4)' }, ticks: { color: '#64748b', font: { size: 11 }, callback: v => fmt(v) } }
+      }
+    }
+  });
+}
+
+// ── Share ─────────────────────────────────────────────────────────────────
+function setShareGroup(g, el) {
+  shareGroup = g;
+  document.querySelectorAll('.card-actions .tab-btn').forEach((b,i) => {
+    if (i < 3) b.classList.toggle('active', b === el);
+  });
+  const titles = {laboratorio:'Ranking por Laboratório', marca:'Ranking por Marca', molecula:'Ranking por Molécula'};
+  document.getElementById('shareTblTitle').textContent = titles[g];
+  loadShare();
+}
+
+async function loadShare() {
+  const p = new URLSearchParams(params());
+  p.set('group_by', shareGroup);
+  const data = await get('/api/market/share?' + p);
+  const labels = data.map(r => r.nome);
+  const values = data.map(r => r.receitas);
+
+  if (charts.share) charts.share.destroy();
+  charts.share = new Chart(document.getElementById('chartShare'), {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: COLORS,
+        borderWidth: 2,
+        borderColor: '#162033',
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '62%',
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: { color: '#94a3b8', font: { size: 11 }, padding: 10, boxWidth: 10 }
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const d = data[ctx.dataIndex];
+              return ` ${d.share}%  (${fmt(d.receitas)} receitas)`;
+            }
+          }
+        }
+      }
+    }
+  });
+
+  // Tabela
+  const max = values[0] || 1;
+  document.getElementById('shareTable').innerHTML = `
+    <table>
+      <thead><tr>
+        <th>#</th><th>${shareGroup.charAt(0).toUpperCase()+shareGroup.slice(1)}</th>
+        <th>Receitas</th><th>Share</th><th>Médicos</th>
+      </tr></thead>
+      <tbody>
+        ${data.map((r,i) => `
+          <tr>
+            <td><span class="badge badge-blue">${i+1}</span></td>
+            <td><strong>${r.nome || '—'}</strong></td>
+            <td>${fmt(r.receitas)}</td>
+            <td>
+              <div class="share-bar-wrap">
+                <div class="share-bar" style="width:${(r.receitas/max*120).toFixed(0)}px"></div>
+                <span class="share-pct">${r.share}%</span>
+              </div>
+            </td>
+            <td><span class="badge badge-green">${fmt(r.medicos)}</span></td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+// ── Geográfico ────────────────────────────────────────────────────────────
+function setGeoGroup(g, el) {
+  geoGroup = g;
+  el.closest('.card-actions').querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b===el));
+  loadGeo();
+}
+
+async function loadGeo() {
+  const p = new URLSearchParams(params());
+  p.set('group_by', geoGroup);
+  const data = await get('/api/market/geografico?' + p);
+  const labels = data.map(r => r.regiao || '?');
+  const values = data.map(r => r.receitas);
+
+  if (charts.geo) charts.geo.destroy();
+  charts.geo = new Chart(document.getElementById('chartGeo'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Receitas',
+        data: values,
+        backgroundColor: COLORS.map(c => c + 'cc'),
+        borderRadius: 5,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(30,58,95,.4)' }, ticks: { color: '#64748b', font: {size:11}, callback: v => fmt(v) } },
+        y: { grid: { display: false }, ticks: { color: '#94a3b8', font: {size:11} } }
+      }
+    }
+  });
+}
+
+async function loadAll() {
+  await Promise.all([loadKPIs(), loadEvolucao(), loadShare(), loadGeo()]);
+}
+
+// Init
+document.addEventListener('DOMContentLoaded', async () => {
+  document.getElementById('userName').textContent = document.cookie.match(/user_name=([^;]+)/) || '';
+  await loadFilters();
+  await loadAll();
+});
+</script>
+</body>
+</html>
