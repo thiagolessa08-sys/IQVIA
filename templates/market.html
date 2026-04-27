@@ -316,8 +316,13 @@ async function loadEvolucao() {
   const values = data.map(r => r.receitas);
   if (charts.evolucao) charts.evolucao.destroy();
   charts.evolucao = new Chart(document.getElementById('chartEvolucao'), {
-    type: 'bar',
-    data: { labels, datasets: [{ label: 'Receitas', data: values, backgroundColor: '#1a56db', borderRadius: 6, hoverBackgroundColor: '#1e40af' }] },
+    type: 'line',
+    data: { labels, datasets: [{
+      label: 'Receitas', data: values,
+      borderColor: '#1a56db', backgroundColor: 'rgba(26,86,219,.08)',
+      borderWidth: 2.5, fill: true, tension: .3,
+      pointRadius: 5, pointBackgroundColor: '#1a56db', pointBorderColor: '#fff', pointBorderWidth: 2,
+    }] },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
