@@ -1,0 +1,425 @@
+{% extends "base.html" %}
+{% block title %}Bases de Dados — SQLTech{% endblock %}
+{% block nav_bases %}active{% endblock %}
+
+{% block extra_style %}
+<style>
+/* ── Modais ─────────────────────────────────────────────────────── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.48);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;z-index:50;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal-box{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:28px 28px 24px;width:100%;max-width:500px;box-shadow:0 24px 64px rgba(0,0,0,.22);transform:translateY(14px);transition:transform .22s}
+.modal-overlay.open .modal-box{transform:translateY(0)}
+.modal-lg{max-width:860px}
+.modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px}
+.modal-head h3{font-size:17px;font-weight:700;margin:0;color:var(--ink)}
+.modal-close{width:30px;height:30px;border:1px solid var(--line);background:var(--surface-2);border-radius:8px;cursor:pointer;display:grid;place-items:center;color:var(--ink-2);font-size:17px;line-height:1;transition:background .15s;flex-shrink:0}
+.modal-close:hover{background:var(--line);color:var(--ink)}
+
+/* ── Upload Zone ────────────────────────────────────────────────── */
+.upload-zone{border:2px dashed var(--line-2);border-radius:16px;padding:36px 20px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;color:var(--ink-3);margin-bottom:16px}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--green);background:var(--green-soft)}
+.upload-zone svg{margin-bottom:10px;color:var(--ink-3)}
+.upload-zone p{font-size:14px;font-weight:600;color:var(--ink-2);margin-bottom:4px}
+.upload-zone span{font-size:11.5px;color:var(--ink-3)}
+.file-chosen{display:none;align-items:center;gap:10px;padding:10px 14px;background:var(--green-soft);border:1px solid var(--green);border-radius:12px;margin-bottom:14px;font-size:13px;font-weight:600;color:var(--green-ink)}
+.file-chosen.show{display:flex}
+.file-chosen span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-chosen button{background:none;border:none;cursor:pointer;color:var(--ink-3);font-size:18px;line-height:1;padding:0 2px;transition:color .15s}
+.file-chosen button:hover{color:var(--rose)}
+.f-label{font-size:12px;font-weight:700;color:var(--ink-2);display:block;margin-bottom:6px;letter-spacing:.03em}
+.f-input{width:100%;padding:10px 14px;border:1.5px solid var(--line-2);border-radius:12px;font-family:inherit;font-size:13.5px;color:var(--ink);background:var(--surface);outline:none;transition:border-color .2s,box-shadow .2s}
+.f-input:focus{border-color:var(--green);box-shadow:0 0 0 3px oklch(0.48 0.18 250 / .1)}
+.upload-err{display:none;color:var(--rose);font-size:12.5px;padding:10px 14px;background:oklch(0.97 0.02 25);border-radius:10px;border:1px solid oklch(0.88 0.04 25);margin-top:12px;line-height:1.5}
+
+/* ── Base Cards ─────────────────────────────────────────────────── */
+.bases-empty{grid-column:span 12;text-align:center;padding:70px 20px;color:var(--ink-3)}
+.bases-empty svg{color:var(--line-2);margin-bottom:16px;display:block;margin-left:auto;margin-right:auto}
+.bases-empty h3{font-size:17px;font-weight:700;color:var(--ink-2);margin-bottom:6px}
+.bases-empty p{font-size:13.5px;line-height:1.65;max-width:300px;margin:0 auto 22px}
+.base-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px;display:flex;flex-direction:column;gap:14px;transition:box-shadow .2s,border-color .2s}
+.base-card:hover{box-shadow:0 4px 20px rgba(0,0,0,.09);border-color:var(--line-2)}
+.base-icon{width:44px;height:44px;background:var(--green-soft);border-radius:12px;display:grid;place-items:center;color:var(--green);flex-shrink:0}
+.base-name{font-size:14.5px;font-weight:700;color:var(--ink);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.base-file{font-size:11.5px;color:var(--ink-3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.base-cols-preview{font-size:11px;color:var(--ink-3);line-height:1.6;padding:8px 10px;background:var(--surface-2);border-radius:8px;border:1px solid var(--line)}
+.base-cols-preview strong{color:var(--ink-2)}
+.base-meta{display:flex;gap:7px;flex-wrap:wrap}
+.base-pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);color:var(--ink-2);white-space:nowrap}
+.base-actions{display:flex;gap:8px;margin-top:auto;padding-top:4px}
+.base-btn{flex:1;font-family:inherit;font-size:12px;font-weight:600;padding:8px 10px;border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:background .15s,color .15s,border-color .15s}
+.base-btn-preview{background:var(--surface-2);border:1px solid var(--line);color:var(--ink-2)}
+.base-btn-preview:hover{background:var(--green-soft);color:var(--green-ink);border-color:var(--green)}
+.base-btn-delete{background:oklch(0.97 0.02 25);border:1px solid oklch(0.88 0.04 25);color:var(--rose)}
+.base-btn-delete:hover{background:oklch(0.93 0.04 25);border-color:var(--rose)}
+
+/* ── Preview Table ──────────────────────────────────────────────── */
+.preview-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.preview-table-wrap{overflow:auto;max-height:420px;border-radius:14px;border:1px solid var(--line)}
+
+/* ── Upload progress ────────────────────────────────────────────── */
+.upload-progress{display:none;margin-top:12px}
+.progress-bar{height:6px;background:var(--bar-track);border-radius:999px;overflow:hidden;margin-top:6px}
+.progress-fill{height:100%;border-radius:999px;background:var(--green);width:0%;transition:width .3s}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="page-head">
+  <div>
+    <h1 class="page-title">Bases de <em>Dados</em></h1>
+    <p class="page-sub">Fontes adicionais de dados · A IA usa estas bases nas análises do Chat</p>
+  </div>
+  <div class="actions">
+    <button class="btn btn-primary" onclick="openUpload()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Importar Base
+    </button>
+  </div>
+</div>
+
+<!-- ── Upload Modal ───────────────────────────────────────────────── -->
+<div class="modal-overlay" id="uploadModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div>
+        <h3>Importar Nova Base de Dados</h3>
+        <p style="font-size:12px;color:var(--ink-3);margin:3px 0 0">CSV ou Excel (.xlsx / .xls)</p>
+      </div>
+      <button class="modal-close" onclick="closeUpload()">×</button>
+    </div>
+
+    <!-- Drop zone -->
+    <div class="upload-zone" id="uploadZone"
+         onclick="document.getElementById('fileInput').click()"
+         ondragover="event.preventDefault();this.classList.add('drag')"
+         ondragleave="this.classList.remove('drag')"
+         ondrop="onFileDrop(event)">
+      <svg width="38" height="38" viewBox="0 0 24 24" fill="none">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <p>Arraste ou clique para selecionar</p>
+      <span>CSV, Excel (.xlsx, .xls) · Máx. 50 MB</span>
+      <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" style="display:none" onchange="onFileChosen(this.files[0])"/>
+    </div>
+
+    <!-- File chosen indicator -->
+    <div class="file-chosen" id="fileChosen">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="1.8"/>
+        <polyline points="14 2 14 8 20 8" stroke="currentColor" stroke-width="1.8"/>
+        <line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="16" y1="17" x2="8" y2="17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+      <span id="fileChosenName">—</span>
+      <button type="button" onclick="clearFile()" title="Remover">×</button>
+    </div>
+
+    <!-- Label -->
+    <div style="margin-bottom:16px">
+      <label class="f-label" for="labelInput">Nome/Rótulo da base (opcional)</label>
+      <input class="f-input" id="labelInput" type="text" placeholder="Ex: Folha de Pagamento 2024"/>
+    </div>
+
+    <!-- Error -->
+    <div class="upload-err" id="uploadErr"></div>
+
+    <!-- Progress -->
+    <div class="upload-progress" id="uploadProgress">
+      <span style="font-size:12px;color:var(--ink-3)">Processando arquivo…</span>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+
+    <!-- Submit -->
+    <button class="btn btn-primary" id="uploadBtn" onclick="doUpload()" style="width:100%;margin-top:16px;justify-content:center">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      Importar Base
+    </button>
+  </div>
+</div>
+
+<!-- ── Preview Modal ──────────────────────────────────────────────── -->
+<div class="modal-overlay" id="previewModal">
+  <div class="modal-box modal-lg">
+    <div class="modal-head">
+      <div>
+        <h3 id="previewTitle">Preview</h3>
+        <p style="font-size:12px;color:var(--ink-3);margin:3px 0 0">Primeiros 10 registros</p>
+      </div>
+      <button class="modal-close" onclick="closePreview()">×</button>
+    </div>
+    <div class="preview-chips" id="previewChips"></div>
+    <div class="preview-table-wrap">
+      <table class="tbl" id="previewTable" style="min-width:100%">
+        <thead id="previewHead"></thead>
+        <tbody id="previewBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── Bases Grid ─────────────────────────────────────────────────── -->
+<div class="grid" id="basesGrid" style="align-items:start">
+  <div class="bases-empty">
+    <div class="typing" style="justify-content:center"><span></span><span></span><span></span></div>
+    <p style="margin-top:14px">Carregando bases…</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_script %}
+<script>
+let currentBases = [];
+
+/* ── Load ──────────────────────────────────────────────────────────── */
+async function loadBases() {
+  try {
+    currentBases = await get('/api/bases');
+    renderBases();
+  } catch(e) {
+    document.getElementById('basesGrid').innerHTML =
+      '<div class="bases-empty"><p>Erro ao carregar bases. Recarregue a página.</p></div>';
+  }
+}
+
+function renderBases() {
+  const grid = document.getElementById('basesGrid');
+  if (!currentBases.length) {
+    grid.innerHTML = `
+      <div class="bases-empty">
+        <svg width="52" height="52" viewBox="0 0 24 24" fill="none">
+          <ellipse cx="12" cy="5" rx="9" ry="3" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M21 12c0 1.66-4.03 3-9 3S3 13.66 3 12M21 5v14c0 1.66-4.03 3-9 3S3 20.66 3 19V5"
+                stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>
+        <h3>Nenhuma base importada</h3>
+        <p>Importe arquivos CSV ou Excel para ampliar o contexto da análise com IA.</p>
+        <button class="btn btn-primary" onclick="openUpload()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          Importar Primeira Base
+        </button>
+      </div>`;
+    return;
+  }
+
+  grid.innerHTML = currentBases.map(b => {
+    const cols = JSON.parse(b.cols || '[]');
+    const colNames = cols.map(c => c.col);
+    const date = (b.uploaded_at || '').replace('T', ' ').split('.')[0];
+    return `
+      <div class="card base-card c-4">
+        <div style="display:flex;align-items:flex-start;gap:12px">
+          <div class="base-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <ellipse cx="12" cy="5" rx="9" ry="3" stroke="currentColor" stroke-width="1.8"/>
+              <path d="M21 12c0 1.66-4.03 3-9 3S3 13.66 3 12M21 5v14c0 1.66-4.03 3-9 3S3 20.66 3 19V5"
+                    stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div class="base-name" title="${escHtml(b.label || b.name)}">${escHtml(b.label || b.name)}</div>
+            <div class="base-file">${escHtml(b.filename)}</div>
+          </div>
+        </div>
+
+        <div class="base-meta">
+          <span class="base-pill">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                    stroke="currentColor" stroke-width="1.8"/>
+            </svg>
+            ${(+b.rows).toLocaleString('pt-BR')} registros
+          </span>
+          <span class="base-pill">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.8"/>
+              <path d="M9 3v18M15 3v18M3 9h18M3 15h18" stroke="currentColor" stroke-width="1.8"/>
+            </svg>
+            ${cols.length} colunas
+          </span>
+          <span class="base-pill" title="${escHtml(date)}">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.8"/>
+              <path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+            ${date.split(' ')[0] || '—'}
+          </span>
+        </div>
+
+        ${colNames.length ? `
+        <div class="base-cols-preview">
+          <strong>Colunas:</strong> ${colNames.slice(0,7).map(escHtml).join(', ')}${colNames.length > 7 ? ` <span style="color:var(--green-mid)">+${colNames.length-7} mais</span>` : ''}
+        </div>` : ''}
+
+        <div class="base-actions">
+          <button class="base-btn base-btn-preview" onclick="previewBase('${b.name}','${escHtml(b.label||b.name)}')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="1.8"/>
+              <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>
+            </svg>
+            Visualizar
+          </button>
+          <button class="base-btn base-btn-delete" onclick="deleteBase('${b.name}','${escHtml(b.label||b.name)}')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+              <polyline points="3 6 5 6 21 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"
+                    stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Excluir
+          </button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ── Upload ─────────────────────────────────────────────────────── */
+function openUpload() {
+  document.getElementById('uploadModal').classList.add('open');
+}
+function closeUpload() {
+  document.getElementById('uploadModal').classList.remove('open');
+  clearFile();
+  document.getElementById('labelInput').value = '';
+  document.getElementById('uploadErr').style.display = 'none';
+  document.getElementById('uploadProgress').style.display = 'none';
+  const btn = document.getElementById('uploadBtn');
+  btn.disabled = false;
+  btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Importar Base';
+}
+
+function onFileChosen(file) {
+  if (!file) return;
+  document.getElementById('uploadZone').style.display = 'none';
+  const fc = document.getElementById('fileChosen');
+  fc.classList.add('show');
+  document.getElementById('fileChosenName').textContent = file.name;
+  if (!document.getElementById('labelInput').value.trim()) {
+    document.getElementById('labelInput').value = file.name.replace(/\.[^.]+$/, '');
+  }
+}
+
+function onFileDrop(e) {
+  e.preventDefault();
+  document.getElementById('uploadZone').classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file) {
+    document.getElementById('fileInput').files; // reference
+    onFileChosen(file);
+    // store reference for upload
+    document.getElementById('fileInput')._droppedFile = file;
+  }
+}
+
+function clearFile() {
+  document.getElementById('fileInput').value = '';
+  document.getElementById('fileInput')._droppedFile = null;
+  document.getElementById('uploadZone').style.display = 'block';
+  document.getElementById('fileChosen').classList.remove('show');
+  document.getElementById('fileChosenName').textContent = '';
+}
+
+async function doUpload() {
+  const inp = document.getElementById('fileInput');
+  const file = inp._droppedFile || (inp.files && inp.files[0]);
+  if (!file) { showUploadErr('Selecione um arquivo CSV ou Excel.'); return; }
+
+  const label = document.getElementById('labelInput').value.trim();
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('label', label);
+
+  const btn = document.getElementById('uploadBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" style="animation:spin .8s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Importando…';
+  document.getElementById('uploadErr').style.display = 'none';
+  document.getElementById('uploadProgress').style.display = 'block';
+
+  // Animate progress bar
+  let prog = 0;
+  const pFill = document.getElementById('progressFill');
+  const ticker = setInterval(() => { prog = Math.min(prog + Math.random()*15, 85); pFill.style.width = prog+'%'; }, 300);
+
+  try {
+    const res = await fetch('/api/bases/upload', { method: 'POST', body: fd });
+    const d = await res.json();
+    clearInterval(ticker);
+    pFill.style.width = '100%';
+    if (!res.ok || d.error) {
+      showUploadErr(d.error || 'Erro ao importar arquivo.');
+    } else {
+      setTimeout(() => { closeUpload(); loadBases(); }, 400);
+    }
+  } catch(e) {
+    clearInterval(ticker);
+    showUploadErr('Erro de conexão. Verifique e tente novamente.');
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Importar Base';
+}
+
+function showUploadErr(msg) {
+  const el = document.getElementById('uploadErr');
+  el.textContent = '⚠ ' + msg;
+  el.style.display = 'block';
+  document.getElementById('uploadProgress').style.display = 'none';
+}
+
+/* ── Preview ─────────────────────────────────────────────────────── */
+async function previewBase(name, label) {
+  document.getElementById('previewTitle').textContent = label;
+  document.getElementById('previewChips').innerHTML = '<span class="base-pill">Carregando…</span>';
+  document.getElementById('previewHead').innerHTML = '';
+  document.getElementById('previewBody').innerHTML = '<tr><td style="padding:20px;color:var(--ink-3);text-align:center">Buscando dados…</td></tr>';
+  document.getElementById('previewModal').classList.add('open');
+  try {
+    const rows = await get(`/api/bases/${name}/preview`);
+    if (!rows || rows.error) {
+      document.getElementById('previewChips').innerHTML = '<span style="color:var(--rose);font-size:12px">Erro ao carregar dados.</span>';
+      return;
+    }
+    if (!rows.length) {
+      document.getElementById('previewChips').innerHTML = '<span style="color:var(--ink-3);font-size:12px">Base vazia.</span>';
+      document.getElementById('previewBody').innerHTML = '';
+      return;
+    }
+    const cols = Object.keys(rows[0]);
+    document.getElementById('previewChips').innerHTML =
+      `<span class="base-pill">${rows.length} registro(s) exibidos</span>` +
+      `<span class="base-pill">${cols.length} colunas</span>`;
+    document.getElementById('previewHead').innerHTML =
+      `<tr>${cols.map(c=>`<th>${escHtml(c)}</th>`).join('')}</tr>`;
+    document.getElementById('previewBody').innerHTML = rows.map(r =>
+      `<tr>${cols.map(c=>`<td>${r[c]!=null ? escHtml(String(r[c])) : '<span style="color:var(--ink-3)">—</span>'}</td>`).join('')}</tr>`
+    ).join('');
+  } catch(e) {
+    document.getElementById('previewChips').innerHTML = '<span style="color:var(--rose);font-size:12px">Erro ao carregar preview.</span>';
+  }
+}
+function closePreview() { document.getElementById('previewModal').classList.remove('open'); }
+
+/* ── Delete ──────────────────────────────────────────────────────── */
+async function deleteBase(name, label) {
+  if (!confirm(`Excluir a base "${label}"?\n\nEsta ação não pode ser desfeita.`)) return;
+  try {
+    const res = await fetch(`/api/bases/${name}`, { method: 'DELETE' });
+    const d = await res.json();
+    if (d.ok) { loadBases(); }
+    else { alert('Erro ao excluir: ' + (d.error || 'desconhecido')); }
+  } catch(e) { alert('Erro de conexão.'); }
+}
+
+/* ── Close on backdrop click ─────────────────────────────────────── */
+document.getElementById('uploadModal').addEventListener('click', e => { if(e.target.id==='uploadModal') closeUpload(); });
+document.getElementById('previewModal').addEventListener('click', e => { if(e.target.id==='previewModal') closePreview(); });
+
+loadBases();
+</script>
+{% endblock %}

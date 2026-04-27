@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+{% block title %}Receitas — Orçamento Municipal{% endblock %}
+{% block nav_receita %}active{% endblock %}
+{% block topbar_filters %}
+<select class="sel" id="mesSel" onchange="loadReceita()">
+  <option value="0">Mês: TODOS</option>
+  <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+  <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+  <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+  <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+</select>
+<select class="sel" id="anoSel" onchange="loadReceita()">
+  <option value="2026">2026</option><option value="2025">2025</option>
+  <option value="2024" selected>2024</option><option value="2023">2023</option>
+</select>
+{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1 class="page-title">Receitas do <em>Município</em></h1>
+    <p class="page-sub" id="pageSubtitle">Execução da arrecadação municipal · Atualização: 23/04/26 · Diária</p>
+  </div>
+  <div class="actions">
+    <button class="btn btn-primary">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Exportar
+    </button>
+    <button class="btn btn-ghost">Balancete Receita</button>
+    <button class="btn btn-ghost">Detalhe Receita</button>
+  </div>
+</div>
+
+<!-- KPI ROW -->
+<div class="grid" style="margin-bottom:16px;grid-template-columns:repeat(5,1fr)">
+  <div class="card stat feature" id="k1">
+    <div class="lbl">Orçado<span class="arrow"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M9 7h8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+    <div class="num" id="k1v">—</div>
+    <div class="meta" id="k1m">Ano anterior: —</div>
+  </div>
+  <div class="card stat" id="k2">
+    <div class="lbl">Orçado Atualizado<span class="arrow"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M9 7h8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+    <div class="num" id="k2v">—</div>
+    <div class="meta" id="k2m">Ano anterior: —</div>
+  </div>
+  <div class="card stat">
+    <div class="lbl">Arrecadação Mês<span class="arrow"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M9 7h8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+    <div class="num" id="k3v">—</div>
+    <div class="meta" id="k3m">—</div>
+  </div>
+  <div class="card stat warm">
+    <div class="lbl">Arrecadação Até o Mês<span class="arrow"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M9 7h8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+    <div class="num" id="k4v">—</div>
+    <div class="meta" id="k4m">—</div>
+  </div>
+  <div class="card stat">
+    <div class="lbl">Arrecadação Mês Anterior<span class="arrow"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M9 7h8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+    <div class="num" id="k5v">—</div>
+    <div class="meta" id="k5m">—</div>
+  </div>
+</div>
+
+<!-- CHARTS ROW 1 -->
+<div class="grid" style="margin-bottom:14px">
+  <!-- Arrecadação por mês (bar) -->
+  <div class="card c-7 chart-col">
+    <div class="sec-head">
+      <h3>Arrecadação por Mês</h3>
+      <div class="tabs-pill" id="barTabs"></div>
+    </div>
+    <div class="vchart" id="vchart" style="grid-template-columns:repeat(12,1fr)"></div>
+    <div class="xlabels" id="xlabels" style="grid-template-columns:repeat(12,1fr)"></div>
+  </div>
+  <!-- Arrecadação por Categoria/Origem (donut) -->
+  <div class="card c-5 chart-col">
+    <div class="sec-head"><h3>Por Categoria / Origem</h3><button class="chip-btn">Exportar</button></div>
+    <div class="donut-wrap2" style="flex:1">
+      <div class="donut2">
+        <svg viewBox="0 0 120 120" id="donutSvg">
+          <circle cx="60" cy="60" r="44" fill="none" stroke="var(--bar-track)" stroke-width="16"/>
+        </svg>
+        <div class="center"><div><b id="donutVal">—</b><span>arrecadado</span></div></div>
+      </div>
+      <div class="donut-list" id="donutList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- CHARTS ROW 2 -->
+<div class="grid" style="margin-bottom:14px">
+  <!-- Histórico mensal por ano (table) -->
+  <div class="card c-7 chart-col">
+    <div class="sec-head"><h3>Histórico Mensal de Arrecadação por Ano</h3></div>
+    <div class="tbl-wrap" style="overflow-x:auto">
+      <table class="tbl" id="histTable">
+        <thead><tr>
+          <th>Meses</th>
+          <th class="r">2023</th><th class="r">2024</th><th class="r">2025</th><th class="r">2026</th>
+        </tr></thead>
+        <tbody id="histBody"><tr><td colspan="5" style="text-align:center;color:var(--ink-3);padding:16px">Carregando…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <!-- Arrecadação Dívida Ativa / Origem -->
+  <div class="card c-5 chart-col">
+    <div class="sec-head"><h3>Arrecadação por Origem</h3></div>
+    <div id="origemBars" style="flex:1;display:flex;flex-direction:column;justify-content:space-evenly"><div style="color:var(--ink-3);font-size:12px;padding:8px 0">Carregando…</div></div>
+  </div>
+</div>
+
+<!-- AI -->
+<div class="card ai-card c-12" style="grid-column:span 12">
+  <h3>✦ Analise as Receitas com IA</h3>
+  <div class="ai-row">
+    <input class="ai-input" id="aiInput" placeholder="Ex: qual origem cresceu mais? como está a execução vs meta?" onkeydown="if(event.key==='Enter')askAI()"/>
+    <button class="ai-send" id="aiBtn" onclick="askAI()">Analisar ↗</button>
+  </div>
+  <div class="ai-chips">
+    <span class="ai-chip" onclick="fillQ('Qual a execução da receita vs meta orçada?')">Execução vs meta</span>
+    <span class="ai-chip" onclick="fillQ('Qual origem de receita cresceu mais?')">Maior crescimento</span>
+    <span class="ai-chip" onclick="fillQ('Como está a arrecadação de 2026 comparada a 2025?')">2026 vs 2025</span>
+    <span class="ai-chip" onclick="fillQ('Qual mês historicamente tem maior arrecadação?')">Melhor mês histórico</span>
+  </div>
+  <div class="ai-resp" id="aiResp"></div>
+</div>
+{% endblock %}
+
+{% block extra_style %}
+<style>
+/* donut — esquerda/direita */
+.donut-wrap2{display:flex!important;flex-direction:row!important;align-items:center!important;gap:18px!important}
+.donut2{position:relative!important;width:150px!important;height:150px!important;flex-shrink:0!important}
+.donut2 svg{width:150px!important;height:150px!important;transform:rotate(-90deg)}
+.donut2 .center{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.donut2 .center b{font-family:'Instrument Serif',serif;font-size:18px;font-weight:400;line-height:1;display:block}
+.donut2 .center span{font-size:9px;color:#888;display:block;margin-top:2px}
+.donut-list{display:flex!important;flex-direction:column!important;gap:5px!important;flex:1!important}
+.donut-list .row{display:flex;align-items:center;gap:7px;padding:5px 9px;border-radius:8px;background:var(--surface-2);border:1px solid var(--line)}
+.donut-list i{display:block;width:9px;height:9px;border-radius:3px;flex-shrink:0}
+.donut-list .lbl{color:var(--ink-2);font-weight:500;font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.donut-list .pct{font-weight:700;font-size:11px;color:var(--ink);flex-shrink:0;font-family:'JetBrains Mono',monospace}
+/* chart cards proporcionais */
+.chart-col{display:flex;flex-direction:column}
+.chart-col .vchart{flex:1;height:auto!important;min-height:160px}
+.chart-col .hbar-row{padding:9px 0}
+.chart-col #origemBars{flex:1;display:flex;flex-direction:column;justify-content:space-between}
+/* AI card — igual ao Painel */
+.card.ai-card,.ai-card{background:linear-gradient(135deg,oklch(0.20 0.12 250) 0%,oklch(0.28 0.16 255) 100%)!important;color:#fff!important;border:1px solid oklch(0.32 0.12 250)!important;position:relative;overflow:hidden;box-shadow:0 8px 32px oklch(0.20 0.12 250/.35)!important}
+.ai-card::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse 80% 60% at 100% 0%,oklch(0.55 0.18 220/.35),transparent 55%),radial-gradient(ellipse 60% 80% at 0% 100%,oklch(0.38 0.20 270/.3),transparent 55%)}
+.ai-card>*{position:relative}
+.ai-card h3{font-size:15px;font-weight:700;margin:0 0 14px;color:#fff;display:flex;align-items:center;gap:8px}
+.ai-card h3::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:oklch(0.70 0.18 200);box-shadow:0 0 8px oklch(0.70 0.18 200/.8);animation:pulse 2s infinite}
+.ai-row{display:flex;gap:8px;align-items:center;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:14px;padding:10px 14px}
+.ai-row:focus-within{border-color:rgba(255,255,255,.5);background:rgba(255,255,255,.14)}
+.ai-input{flex:1;border:none;background:transparent;font-size:13px;color:#fff;outline:none;font-family:inherit}
+.ai-input::placeholder{color:rgba(255,255,255,.5)}
+.ai-send{padding:7px 16px;background:#fff;color:oklch(0.22 0.10 250);border:none;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.2);transition:opacity .15s,transform .1s}
+.ai-send:hover{opacity:.9;transform:translateY(-1px)}.ai-send:disabled{opacity:.4}
+.ai-chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}
+.ai-chip{font-size:11px;padding:5px 13px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.1);color:rgba(255,255,255,.85);cursor:pointer;transition:background .15s;font-weight:500}
+.ai-chip:hover{background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.4)}
+.ai-resp{margin-top:14px;padding:14px 16px;font-size:12.5px;background:rgba(255,255,255,.1);border-radius:14px;color:#fff;line-height:1.7;display:none;border-left:3px solid oklch(0.65 0.18 250)}
+.ai-resp.show{display:block}
+/* table */
+.tbl-wrap{border-radius:14px;overflow:hidden;border:1px solid #c8d6e8}
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl thead{background:linear-gradient(135deg,#1a3a5c 0%,#2356a0 100%)}
+.tbl th{text-align:left;padding:12px 14px;font-size:10.5px;font-weight:700;color:#fff;white-space:nowrap;letter-spacing:.05em;text-transform:uppercase;border-right:1px solid rgba(255,255,255,.15)}
+.tbl th:last-child{border-right:0}
+.tbl th.r,.tbl td.r{text-align:right}
+.tbl tbody tr:nth-child(odd) td{background:#ffffff}
+.tbl tbody tr:nth-child(even) td{background:#eef2f8}
+.tbl td{padding:10px 14px;border-bottom:1px solid #d4deec;border-right:1px solid #e8eef7;color:#4a5568;font-family:'JetBrains Mono',monospace;font-size:11px;transition:background .1s}
+.tbl td:last-child{border-right:0}
+.tbl td.name{font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;color:#1a3a5c;font-size:12px;border-right:1px solid #c8d6e8}
+.tbl tr:last-child td{border-bottom:0}
+.tbl tr:hover td{background:#dce8f5!important}
+</style>
+{% endblock %}
+
+{% block page_script %}
+<script>
+const meses = ['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const mesAbr  = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+let histData = {};
+
+async function loadHistorico() {
+  const rows = await get('/api/receita/historico');
+  histData = {};
+  rows.forEach(r => {
+    if (!histData[r.ano]) histData[r.ano] = Array(12).fill(0);
+    histData[r.ano][r.mes - 1] = +r.total || 0;
+  });
+  renderHistTable();
+  renderBarTabs();
+}
+
+function renderBarTabs() {
+  const anos = Object.keys(histData).sort((a,b)=>b-a);
+  document.getElementById('barTabs').innerHTML = anos.map((a,i) =>
+    `<button class="${i===1?'on':''}" onclick="switchBarAno(this,${a})">${a}</button>`).join('');
+  const sel = +document.getElementById('anoSel').value;
+  renderBars(histData[sel] || Array(12).fill(0), sel);
+}
+
+function renderBars(vals, ano) {
+  const maxV = Math.max(...vals.filter(v=>v>0)) || 1;
+  const peak = vals.indexOf(Math.max(...vals));
+  document.getElementById('vchart').innerHTML = vals.map((v,i) =>
+    `<div class="bar${v===0?' muted':''}">
+      ${i===peak&&v>0?`<div class="tip">${fmtM(v)}</div>`:''}
+      <div class="fill" style="height:${v>0?((v/maxV*88)+8).toFixed(1):5}%"></div>
+    </div>`).join('');
+  document.getElementById('xlabels').innerHTML = mesAbr.map(m=>`<div>${m}</div>`).join('');
+}
+
+async function switchBarAno(btn, ano) {
+  btn.closest('.tabs-pill').querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  renderBars(histData[ano] || Array(12).fill(0), ano);
+}
+
+function renderHistTable() {
+  const anos = [2023,2024,2025,2026];
+  document.getElementById('histBody').innerHTML = meses.map((m,i) => `
+    <tr>
+      <td class="name">${m}</td>
+      ${anos.map(a => `<td class="r">${histData[a]&&histData[a][i]?'R$ '+histData[a][i].toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'R$ 0,00'}</td>`).join('')}
+    </tr>`).join('');
+}
+
+async function loadReceita() {
+  const ano = +document.getElementById('anoSel').value;
+  const mes = +document.getElementById('mesSel').value;
+  const [kpis, origem] = await Promise.all([
+    get(`/api/receita/kpis?ano=${ano}&mes=${mes}`),
+    get(`/api/receita/origem?ano=${ano}&mes=${mes}`)
+  ]);
+  renderKpis(kpis, mes);
+  renderDonut(origem, kpis);
+  renderOrigemBars(origem);
+  if (histData[ano]) renderBars(histData[ano], ano);
+}
+
+function renderKpis(k, mes) {
+  document.getElementById('k1v').textContent = fmt(k.orcado);
+  document.getElementById('k1m').innerHTML = `Tendência <span class="delta-dn">▼</span>`;
+  document.getElementById('k2v').textContent = fmt(k.orcado_atualizado);
+  document.getElementById('k2m').innerHTML = `Tendência <span class="delta-dn">▼</span>`;
+  // Arrecadação mês (se mes>0 mostra mês específico, senão mostra total)
+  const arrMes = mes > 0 ? +k.arrecadado : (+k.arrecadado);
+  document.getElementById('k3v').textContent = fmt(arrMes);
+  document.getElementById('k3m').innerHTML = `${delta(arrMes, k.arrecadado_prev)}`;
+  document.getElementById('k4v').textContent = fmt(k.acumulado);
+  document.getElementById('k4m').innerHTML = `Acumulado · ${delta(k.acumulado, k.acumulado_prev)}`;
+  document.getElementById('k5v').textContent = fmt(k.arrecadado_prev);
+  document.getElementById('k5m').textContent = 'Mês anterior referência';
+}
+
+function renderDonut(rows, kpi) {
+  const total = rows.reduce((s,r)=>s+(+r.arrecadado||0),0)||1;
+  const circ = 2*Math.PI*44;
+  let off = 0;
+  const segs = rows.slice(0,6).map((r,i)=>{
+    const frac = (+r.arrecadado||0)/total;
+    const dash = frac*circ;
+    const el = `<circle cx="60" cy="60" r="44" fill="none" stroke="${PAL[i]}" stroke-width="16" stroke-dasharray="${dash.toFixed(2)} ${circ.toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}"/>`;
+    off += dash; return el;
+  });
+  document.getElementById('donutSvg').innerHTML = `<circle cx="60" cy="60" r="44" fill="none" stroke="var(--bar-track)" stroke-width="16"/>` + segs.join('');
+  document.getElementById('donutVal').textContent = fmt(kpi.arrecadado);
+  document.getElementById('donutList').innerHTML = rows.slice(0,6).map((r,i)=>`
+    <div class="row"><i style="background:${PAL[i]}"></i>
+    <span class="lbl">${r.origem}</span>
+    <span class="pct">${((+r.arrecadado/total)*100).toFixed(0)}%</span></div>`).join('');
+}
+
+function renderOrigemBars(rows) {
+  const maxV = Math.max(...rows.map(r=>+r.arrecadado||0))||1;
+  document.getElementById('origemBars').innerHTML = rows.map((r,i)=>`
+    <div class="hbar-row">
+      <div class="hname">${r.origem.replace('IMPOSTOS, TAXAS E CONTRIBUIÇÕES DE MELHORIA','Impostos e Taxas').replace('TRANSFERÊNCIAS CORRENTES','Transf. Correntes').replace('TRANSFERÊNCIAS DE CAPITAL','Transf. Capital').replace('OUTRAS RECEITAS CORRENTES','Outras Rec. Correntes').replace('RECEITA PATRIMONIAL','Rec. Patrimonial').replace('OPERAÇÕES DE CRÉDITO','Op. de Crédito').replace('CONTRIBUIÇÕES','Contribuições').replace('ALIENAÇÃO DE BENS','Alienação de Bens')}</div>
+      <div class="hbar"><i style="width:${((+r.arrecadado/maxV)*100).toFixed(1)}%;background:${PAL[i]||PAL[0]}"></i></div>
+      <div class="hval">${fmtM(r.arrecadado)}</div>
+    </div>`).join('');
+}
+
+loadHistorico().then(() => loadReceita());
+</script>
+{% endblock %}

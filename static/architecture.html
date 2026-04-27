@@ -1,0 +1,1639 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SQLTech — Arquitetura do Sistema</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    /* ─── RESET & BASE ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #0f172a;
+      --bg-2:       #1e293b;
+      --bg-3:       #0d1526;
+      --surface:    #162032;
+      --surface-2:  #1c2a3f;
+      --border:     rgba(255,255,255,0.07);
+
+      --blue:       #3b82f6;
+      --blue-dim:   rgba(59,130,246,0.15);
+      --green:      #10b981;
+      --green-dim:  rgba(16,185,129,0.15);
+      --amber:      #f59e0b;
+      --amber-dim:  rgba(245,158,11,0.15);
+      --purple:     #8b5cf6;
+      --purple-dim: rgba(139,92,246,0.15);
+      --slate:      #64748b;
+      --slate-dim:  rgba(100,116,139,0.15);
+      --rose:       #f43f5e;
+      --cyan:       #06b6d4;
+
+      --text:       #e2e8f0;
+      --text-muted: #64748b;
+      --text-dim:   #94a3b8;
+
+      --font-head:  'Space Grotesk', sans-serif;
+      --font-body:  'Inter', sans-serif;
+      --font-mono:  'JetBrains Mono', monospace;
+
+      --radius:     12px;
+      --radius-lg:  18px;
+      --shadow:     0 4px 24px rgba(0,0,0,0.4);
+      --shadow-lg:  0 8px 40px rgba(0,0,0,0.6);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* subtle grid texture */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(59,130,246,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ─── LAYOUT ───────────────────────────────────────────────────── */
+    .page {
+      position: relative;
+      z-index: 1;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+      display: flex;
+      flex-direction: column;
+      gap: 36px;
+    }
+
+    /* ─── CARD ─────────────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+    }
+
+    .card--blue   { border-top: 2px solid var(--blue);   }
+    .card--green  { border-top: 2px solid var(--green);  }
+    .card--amber  { border-top: 2px solid var(--amber);  }
+    .card--purple { border-top: 2px solid var(--purple); }
+    .card--slate  { border-top: 2px solid var(--slate);  }
+    .card--multi  { border-top: 2px solid transparent;
+                    border-image: linear-gradient(90deg, var(--blue), var(--green), var(--amber), var(--purple)) 1; }
+
+    .card-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .card-title {
+      font-family: var(--font-head);
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* ─── HEADER ───────────────────────────────────────────────────── */
+    .header {
+      text-align: center;
+      padding: 52px 32px 48px;
+      background: linear-gradient(145deg, #0d1a2e 0%, #0f172a 50%, #12102a 100%);
+      border: 1px solid rgba(139,92,246,0.2);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 0 80px rgba(139,92,246,0.08), var(--shadow-lg);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .header::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 50%;
+      transform: translateX(-50%);
+      width: 600px; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(139,92,246,0.5), transparent);
+    }
+
+    .header-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--purple);
+      margin-bottom: 16px;
+      opacity: 0.8;
+    }
+
+    .header-title {
+      font-family: var(--font-head);
+      font-size: clamp(28px, 5vw, 46px);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #e2e8f0 0%, #8b5cf6 50%, #3b82f6 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1.15;
+      margin-bottom: 12px;
+    }
+
+    .header-sub {
+      color: var(--text-dim);
+      font-size: 15px;
+      font-weight: 400;
+      margin-bottom: 36px;
+      max-width: 520px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 14px;
+      border-radius: 100px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      border: 1px solid;
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: default;
+    }
+
+    .badge:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    }
+
+    .badge--blue   { color: var(--blue);   border-color: rgba(59,130,246,0.4);   background: var(--blue-dim); }
+    .badge--green  { color: var(--green);  border-color: rgba(16,185,129,0.4);   background: var(--green-dim); }
+    .badge--amber  { color: var(--amber);  border-color: rgba(245,158,11,0.4);   background: var(--amber-dim); }
+    .badge--purple { color: var(--purple); border-color: rgba(139,92,246,0.4);   background: var(--purple-dim); }
+    .badge--slate  { color: var(--slate);  border-color: rgba(100,116,139,0.4);  background: var(--slate-dim); }
+    .badge--cyan   { color: var(--cyan);   border-color: rgba(6,182,212,0.4);    background: rgba(6,182,212,0.1); }
+
+    /* ─── SECTION TITLE ────────────────────────────────────────────── */
+    .section-tag {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .section-title {
+      font-family: var(--font-head);
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 28px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-title .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ─── FLOW DIAGRAM ─────────────────────────────────────────────── */
+    .flow-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+    }
+
+    .flow-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      flex-wrap: wrap;
+    }
+
+    .flow-node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 20px 24px;
+      border-radius: var(--radius);
+      border: 1.5px solid;
+      min-width: 140px;
+      text-align: center;
+      position: relative;
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: default;
+    }
+
+    .flow-node:hover {
+      transform: translateY(-3px);
+    }
+
+    .flow-node--blue {
+      border-color: var(--blue);
+      background: var(--blue-dim);
+      box-shadow: 0 0 24px rgba(59,130,246,0.15);
+    }
+    .flow-node--blue:hover { box-shadow: 0 4px 32px rgba(59,130,246,0.3); }
+
+    .flow-node--green {
+      border-color: var(--green);
+      background: var(--green-dim);
+      box-shadow: 0 0 24px rgba(16,185,129,0.15);
+    }
+    .flow-node--green:hover { box-shadow: 0 4px 32px rgba(16,185,129,0.3); }
+
+    .flow-node--amber {
+      border-color: var(--amber);
+      background: var(--amber-dim);
+      box-shadow: 0 0 24px rgba(245,158,11,0.15);
+    }
+    .flow-node--amber:hover { box-shadow: 0 4px 32px rgba(245,158,11,0.3); }
+
+    .flow-node--purple {
+      border-color: var(--purple);
+      background: var(--purple-dim);
+      box-shadow: 0 0 24px rgba(139,92,246,0.15);
+    }
+    .flow-node--purple:hover { box-shadow: 0 4px 32px rgba(139,92,246,0.3); }
+
+    .flow-node-name {
+      font-family: var(--font-head);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .flow-node-sub {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    /* animated arrow */
+    .flow-arrow {
+      display: flex;
+      align-items: center;
+      padding: 0 4px;
+      position: relative;
+    }
+
+    .flow-arrow svg {
+      overflow: visible;
+    }
+
+    .arrow-line {
+      stroke-dasharray: 6 3;
+      animation: dash 1.2s linear infinite;
+    }
+
+    @keyframes dash {
+      to { stroke-dashoffset: -18; }
+    }
+
+    .flow-down {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 4px 0;
+    }
+
+    .flow-down svg {
+      overflow: visible;
+    }
+
+    .arrow-down-line {
+      stroke-dasharray: 6 3;
+      animation: dash-down 1.2s linear infinite;
+    }
+
+    @keyframes dash-down {
+      to { stroke-dashoffset: -18; }
+    }
+
+    /* ─── ROUTES TABLE ─────────────────────────────────────────────── */
+    .routes-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .route-col {
+      background: var(--surface-2);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .route-col-head {
+      padding: 12px 16px;
+      font-family: var(--font-head);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .route-col-head--blue  { color: var(--blue);  background: rgba(59,130,246,0.1);  border-bottom: 1px solid rgba(59,130,246,0.2); }
+    .route-col-head--green { color: var(--green); background: rgba(16,185,129,0.1);  border-bottom: 1px solid rgba(16,185,129,0.2); }
+
+    .route-item {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      padding: 8px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      transition: background 0.15s;
+    }
+
+    .route-item:last-child { border-bottom: none; }
+    .route-item:hover { background: rgba(255,255,255,0.03); }
+
+    .route-method {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 500;
+      padding: 2px 6px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+
+    .method--get    { background: rgba(16,185,129,0.2);  color: var(--green); }
+    .method--post   { background: rgba(245,158,11,0.2);  color: var(--amber); }
+    .method--delete { background: rgba(244,63,94,0.2);   color: var(--rose); }
+    .method--multi  { background: rgba(100,116,139,0.2); color: var(--slate); }
+
+    .route-path {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    /* ─── AGENTIC LOOP ─────────────────────────────────────────────── */
+    .loop-container {
+      position: relative;
+    }
+
+    .loop-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .loop-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      position: relative;
+    }
+
+    .loop-step:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      left: 19px;
+      top: 44px;
+      bottom: -2px;
+      width: 2px;
+      background: linear-gradient(180deg, rgba(139,92,246,0.4), rgba(59,130,246,0.2));
+      border-radius: 2px;
+    }
+
+    .loop-step-num {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-head);
+      font-size: 14px;
+      font-weight: 700;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 1;
+      border: 2px solid;
+    }
+
+    .step-1 { background: rgba(59,130,246,0.2);  border-color: var(--blue);   color: var(--blue); }
+    .step-2 { background: rgba(16,185,129,0.2);  border-color: var(--green);  color: var(--green); }
+    .step-3 { background: rgba(245,158,11,0.2);  border-color: var(--amber);  color: var(--amber); }
+    .step-4 { background: rgba(139,92,246,0.2);  border-color: var(--purple); color: var(--purple); }
+    .step-5 { background: rgba(6,182,212,0.2);   border-color: var(--cyan);   color: var(--cyan); }
+    .step-6 { background: rgba(244,63,94,0.2);   border-color: var(--rose);   color: var(--rose); }
+
+    .loop-step-body {
+      padding: 10px 0 24px;
+      flex: 1;
+    }
+
+    .loop-step-title {
+      font-family: var(--font-head);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .loop-step-desc {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+
+    .loop-step-code {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.06);
+      color: var(--cyan);
+      margin-top: 6px;
+    }
+
+    .loop-badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 100px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 500;
+      border: 1px solid;
+    }
+
+    .chip--blue   { color: var(--blue);   border-color: rgba(59,130,246,0.35);   background: var(--blue-dim); }
+    .chip--green  { color: var(--green);  border-color: rgba(16,185,129,0.35);   background: var(--green-dim); }
+    .chip--amber  { color: var(--amber);  border-color: rgba(245,158,11,0.35);   background: var(--amber-dim); }
+    .chip--purple { color: var(--purple); border-color: rgba(139,92,246,0.35);   background: var(--purple-dim); }
+    .chip--cyan   { color: var(--cyan);   border-color: rgba(6,182,212,0.35);    background: rgba(6,182,212,0.1); }
+    .chip--rose   { color: var(--rose);   border-color: rgba(244,63,94,0.35);    background: rgba(244,63,94,0.1); }
+
+    /* iteration counter */
+    .iter-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      background: rgba(139,92,246,0.15);
+      border: 1px solid rgba(139,92,246,0.3);
+      border-radius: 100px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--purple);
+      margin-top: 16px;
+    }
+
+    .iter-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--purple);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.4; transform: scale(0.8); }
+    }
+
+    /* ─── DATABASE ─────────────────────────────────────────────────── */
+    .db-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .db-group {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .db-group-head {
+      padding: 11px 16px;
+      font-family: var(--font-head);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .db-group-head--amber  { color: var(--amber);  background: rgba(245,158,11,0.1);  border-bottom: 1px solid rgba(245,158,11,0.2); }
+    .db-group-head--green  { color: var(--green);  background: rgba(16,185,129,0.1);  border-bottom: 1px solid rgba(16,185,129,0.2); }
+
+    .db-table-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      transition: background 0.15s;
+    }
+
+    .db-table-row:last-child { border-bottom: none; }
+    .db-table-row:hover { background: rgba(255,255,255,0.03); }
+
+    .db-table-name {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    .db-table-rows {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .db-tag {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
+
+    .db-tag--fixed   { background: rgba(245,158,11,0.2);  color: var(--amber); }
+    .db-tag--dynamic { background: rgba(16,185,129,0.2);  color: var(--green); }
+    .db-tag--seed    { background: rgba(59,130,246,0.2);  color: var(--blue); }
+    .db-tag--temp    { background: rgba(100,116,139,0.2); color: var(--slate); }
+
+    /* ─── CI/CD PIPELINE ───────────────────────────────────────────── */
+    .pipeline {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      flex-wrap: wrap;
+      padding: 8px 0;
+    }
+
+    .pipe-node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 16px 20px;
+      border-radius: var(--radius);
+      border: 1.5px solid;
+      min-width: 110px;
+      text-align: center;
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: default;
+    }
+
+    .pipe-node:hover { transform: translateY(-3px); }
+
+    .pipe-node--slate  { border-color: var(--slate);  background: var(--slate-dim);  box-shadow: 0 0 20px rgba(100,116,139,0.1); }
+    .pipe-node--blue   { border-color: var(--blue);   background: var(--blue-dim);   box-shadow: 0 0 20px rgba(59,130,246,0.1); }
+    .pipe-node--green  { border-color: var(--green);  background: var(--green-dim);  box-shadow: 0 0 20px rgba(16,185,129,0.1); }
+    .pipe-node--amber  { border-color: var(--amber);  background: var(--amber-dim);  box-shadow: 0 0 20px rgba(245,158,11,0.1); }
+    .pipe-node--cyan   { border-color: var(--cyan);   background: rgba(6,182,212,0.12); box-shadow: 0 0 20px rgba(6,182,212,0.1); }
+
+    .pipe-node-label {
+      font-family: var(--font-head);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .pipe-node-sub {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .pipe-arrow {
+      display: flex;
+      align-items: center;
+      padding: 0 2px;
+    }
+
+    /* ─── SEEDS SECTION ────────────────────────────────────────────── */
+    .seeds-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .seeds-panel {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+
+    .seeds-panel-title {
+      font-family: var(--font-head);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .seeds-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .seeds-step:last-child { margin-bottom: 0; }
+
+    .seeds-num {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: rgba(245,158,11,0.2);
+      border: 1px solid rgba(245,158,11,0.4);
+      color: var(--amber);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .seeds-text {
+      font-size: 12px;
+      color: var(--text-dim);
+      line-height: 1.5;
+      padding-top: 2px;
+    }
+
+    .seeds-text code {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--amber);
+      background: rgba(245,158,11,0.1);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    /* lifecycle */
+    .lifecycle {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .lifecycle-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.02);
+    }
+
+    .lifecycle-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .lifecycle-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .lifecycle-flag {
+      margin-left: auto;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    .flag--keep   { background: rgba(16,185,129,0.2); color: var(--green); }
+    .flag--delete { background: rgba(244,63,94,0.2);  color: var(--rose); }
+
+    /* ─── FILE TREE ────────────────────────────────────────────────── */
+    .file-tree {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-dim);
+      line-height: 2;
+      background: var(--bg-3);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      border: 1px solid var(--border);
+    }
+
+    .ft-dir  { color: var(--blue); }
+    .ft-py   { color: var(--green); }
+    .ft-html { color: var(--amber); }
+    .ft-csv  { color: var(--purple); }
+    .ft-cfg  { color: var(--slate); }
+    .ft-db   { color: var(--amber); }
+    .ft-note { color: var(--text-muted); font-size: 10px; }
+
+    /* ─── AUTH SECTION ─────────────────────────────────────────────── */
+    .auth-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+
+    .auth-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      text-align: center;
+    }
+
+    .auth-card-icon {
+      margin-bottom: 8px;
+    }
+
+    .auth-card-title {
+      font-family: var(--font-head);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .auth-card-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* ─── DIVIDER ──────────────────────────────────────────────────── */
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border), transparent);
+      margin: 4px 0;
+    }
+
+    /* ─── RESPONSIVE ───────────────────────────────────────────────── */
+    @media (max-width: 680px) {
+      .routes-grid, .db-grid, .seeds-grid, .auth-grid { grid-template-columns: 1fr; }
+      .pipeline { gap: 8px; flex-direction: column; }
+      .pipe-arrow { transform: rotate(90deg); }
+      .flow-row { gap: 8px; }
+      .page { padding: 24px 16px 60px; gap: 24px; }
+      .card { padding: 20px; }
+    }
+
+    /* ─── SCROLL REVEAL ────────────────────────────────────────────── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: none;
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       1. HEADER
+  ═══════════════════════════════════════════════════════════════════ -->
+  <header class="header reveal">
+    <div class="header-eyebrow">Documentação Técnica · v1.0 · 2025</div>
+    <h1 class="header-title">SQLTech — Arquitetura do Sistema</h1>
+    <p class="header-sub">Orçamento Municipal IA · Flask 3.1 + SQLite + Anthropic API + Chart.js 4</p>
+
+    <div class="badge-row">
+      <span class="badge badge--green">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        Flask 3.1
+      </span>
+      <span class="badge badge--amber">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        SQLite
+      </span>
+      <span class="badge badge--purple">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+        Anthropic claude-haiku-4-5
+      </span>
+      <span class="badge badge--blue">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Chart.js 4
+      </span>
+      <span class="badge badge--cyan">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        Railway
+      </span>
+      <span class="badge badge--slate">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/></svg>
+        GitHub CI/CD
+      </span>
+      <span class="badge badge--green">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+        Gunicorn · 2 workers
+      </span>
+      <span class="badge badge--blue">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Jinja2 · Vanilla JS
+      </span>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       2. MAIN FLOW DIAGRAM
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="card card--multi reveal">
+    <div class="section-tag">Seção 01</div>
+    <div class="section-title">
+      <span class="dot" style="background:var(--blue)"></span>
+      Diagrama de Fluxo Principal
+    </div>
+
+    <div class="flow-wrap">
+      <!-- Top row: Browser → Flask → SQLite -->
+      <div class="flow-row">
+
+        <!-- Browser -->
+        <div class="flow-node flow-node--blue">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="1.5">
+            <rect x="2" y="3" width="20" height="14" rx="2"/>
+            <path d="M8 21h8M12 17v4"/>
+          </svg>
+          <div class="flow-node-name">Browser</div>
+          <div class="flow-node-sub">Jinja2 Templates<br/>Vanilla JS<br/>Chart.js 4</div>
+        </div>
+
+        <!-- Arrow → -->
+        <div class="flow-arrow">
+          <svg width="72" height="24" viewBox="0 0 72 24">
+            <defs>
+              <marker id="ah1" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                <path d="M0,0 L0,6 L8,3 z" fill="#3b82f6"/>
+              </marker>
+            </defs>
+            <line class="arrow-line" x1="4" y1="12" x2="62" y2="12"
+                  stroke="#3b82f6" stroke-width="1.5" marker-end="url(#ah1)"/>
+            <text x="36" y="9" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono" font-size="8">HTTP/JSON</text>
+          </svg>
+        </div>
+
+        <!-- Flask -->
+        <div class="flow-node flow-node--green">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="1.5">
+            <path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/>
+          </svg>
+          <div class="flow-node-name">Flask 3.1</div>
+          <div class="flow-node-sub">Gunicorn · 2 workers<br/>@login_required<br/>Jinja2 render</div>
+        </div>
+
+        <!-- Arrow → -->
+        <div class="flow-arrow">
+          <svg width="72" height="24" viewBox="0 0 72 24">
+            <defs>
+              <marker id="ah2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                <path d="M0,0 L0,6 L8,3 z" fill="#f59e0b"/>
+              </marker>
+            </defs>
+            <line class="arrow-line" x1="4" y1="12" x2="62" y2="12"
+                  stroke="#f59e0b" stroke-width="1.5" marker-end="url(#ah2)"/>
+            <text x="36" y="9" text-anchor="middle" fill="#64748b" font-family="JetBrains Mono" font-size="8">safe_sql()</text>
+          </svg>
+        </div>
+
+        <!-- SQLite -->
+        <div class="flow-node flow-node--amber">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="1.5">
+            <ellipse cx="12" cy="5" rx="9" ry="3"/>
+            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+          </svg>
+          <div class="flow-node-name">SQLite DB</div>
+          <div class="flow-node-sub">municipal.db<br/>~1.24M linhas<br/>pandas ingestão</div>
+        </div>
+
+      </div><!-- /flow-row -->
+
+      <!-- Down arrow from Flask to Anthropic -->
+      <div style="display:flex; justify-content:center; position:relative; width:100%; padding-left:198px;">
+        <div class="flow-down">
+          <svg width="24" height="64" viewBox="0 0 24 64">
+            <defs>
+              <marker id="adv" markerWidth="8" markerHeight="8" refX="3" refY="6" orient="auto">
+                <path d="M0,0 L6,0 L3,8 z" fill="#8b5cf6"/>
+              </marker>
+            </defs>
+            <line class="arrow-down-line" x1="12" y1="4" x2="12" y2="56"
+                  stroke="#8b5cf6" stroke-width="1.5" marker-end="url(#adv)"/>
+            <text x="16" y="32" fill="#64748b" font-family="JetBrains Mono" font-size="8" writing-mode="vertical-rl">tool_use</text>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Bottom: Anthropic -->
+      <div class="flow-row">
+        <div style="width: 198px; flex-shrink:0;"></div>
+        <div class="flow-node flow-node--purple" style="min-width:160px;">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="1.5">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 8v4l3 3"/>
+            <path d="M8.5 8.5a6 6 0 000 7"/>
+            <path d="M15.5 8.5a6 6 0 010 7"/>
+          </svg>
+          <div class="flow-node-name">Anthropic API</div>
+          <div class="flow-node-sub">claude-haiku-4-5<br/>tool: query_database<br/>max 6 iterações</div>
+        </div>
+      </div>
+
+    </div><!-- /flow-wrap -->
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       3. ROUTES TABLE
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="card card--blue reveal">
+    <div class="section-tag">Seção 02</div>
+    <div class="section-title">
+      <span class="dot" style="background:var(--blue)"></span>
+      Rotas Flask
+    </div>
+
+    <div class="routes-grid">
+      <!-- Pages -->
+      <div class="route-col">
+        <div class="route-col-head route-col-head--blue">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          Páginas HTML
+        </div>
+        <div class="route-item">
+          <span class="route-method method--get">GET</span>
+          <span class="route-path">/login</span>
+        </div>
+        <div class="route-item">
+          <span class="route-method method--get">GET</span>
+          <span class="route-path">/logout</span>
+        </div>
+        <div class="route-item">
+          <span class="route-method method--get">GET</span>
+          <span class="route-path">/</span>
+        </div>
+        <div class="route-item">
+          <span class="route-method method--get">GET</span>
+          <span class="route-path">/receita</span>
+        </div>
+        <div class="route-item">
+          <span class="route-method method--get">GET</span>
+          <span class="route-path">/despesa</span>
+        </div>
+        <div class="route-item">
+          <span class="route-method method--get">GET</span>
+          <span class="route-path">/chat</span>
+        </div>
+        <div class="route-item">
+          <span class="route-method method--get">GET</span>
+          <span class="route-path">/bases</span>
+        </div>
+        <div class="divider" style="margin:4px 16px;"></div>
+        <div class="route-item">
+          <span class="route-method method--post">POST</span>
+          <span class="route-path">/login  <span style="color:var(--text-muted);font-size:10px;">(autenticação)</span></span>
+        </div>
+      </div>
+
+      <!-- APIs -->
+      <div class="route-col">
+        <div class="route-col-head route-col-head--green">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          APIs REST
+        </div>
+        <div class="route-item">
+          <span class="route-method method--get">GET</span>
+          <span class="route-path">/api/anos</span>
+        </div>
+        <div class="route-item">
+          <span class="route-method method--get">GET</span>
+          <span class="route-path">/api/kpis</span>
+        </div>
+        <div class="route-item">
+          <span class="route-method method--get">GET</span>
+          <span class="route-path">/api/receita-*</span>
+        </div>
+        <div class="route-item">
+          <span class="route-method method--get">GET</span>
+          <span class="route-path">/api/despesa-*</span>
+        </div>
+        <div class="divider" style="margin:4px 16px;"></div>
+        <div class="route-item">
+          <span class="route-method method--multi">CRUD</span>
+          <span class="route-path">/api/bases</span>
+        </div>
+        <div class="route-item">
+          <span class="route-method method--post">POST</span>
+          <span class="route-path">/api/bases/upload</span>
+        </div>
+        <div class="route-item">
+          <span class="route-method method--get">GET</span>
+          <span class="route-path">/api/bases/{name}/preview</span>
+        </div>
+        <div class="divider" style="margin:4px 16px;"></div>
+        <div class="route-item">
+          <span class="route-method method--post">POST</span>
+          <span class="route-path">/api/chat  <span style="color:var(--purple);font-size:10px;">(agentic)</span></span>
+        </div>
+        <div class="route-item">
+          <span class="route-method method--get">GET</span>
+          <span class="route-path">/api/chat/context</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       4. AGENTIC LOOP
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="card card--purple reveal">
+    <div class="section-tag">Seção 03</div>
+    <div class="section-title">
+      <span class="dot" style="background:var(--purple)"></span>
+      Agentic Loop IA
+    </div>
+
+    <div class="loop-container">
+      <div class="loop-steps">
+
+        <div class="loop-step">
+          <div class="loop-step-num step-1">1</div>
+          <div class="loop-step-body">
+            <div class="loop-step-title">Frontend envia contexto</div>
+            <div class="loop-step-desc">
+              Browser serializa <code class="loop-step-code">messages[]</code> com histórico + system prompt contendo contexto do banco e schemas SQL.
+              Requisição via <code class="loop-step-code">POST /api/chat</code>.
+            </div>
+            <div class="loop-badge-row">
+              <span class="chip chip--blue">messages[]</span>
+              <span class="chip chip--blue">system_prompt</span>
+              <span class="chip chip--blue">sql_schemas</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="loop-step">
+          <div class="loop-step-num step-2">2</div>
+          <div class="loop-step-body">
+            <div class="loop-step-title">Flask → Anthropic API</div>
+            <div class="loop-step-desc">
+              Flask envia requisição para Anthropic com tool <code class="loop-step-code">query_database</code> definida.
+              Modelo decide se precisa consultar dados.
+            </div>
+            <div class="loop-badge-row">
+              <span class="chip chip--green">POST Anthropic API</span>
+              <span class="chip chip--purple">tool: query_database</span>
+              <span class="chip chip--purple">claude-haiku-4-5</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="loop-step">
+          <div class="loop-step-num step-3">3</div>
+          <div class="loop-step-body">
+            <div class="loop-step-title">Verifica stop_reason</div>
+            <div class="loop-step-desc">
+              Se <code class="loop-step-code">stop_reason == "tool_use"</code>: extrai SQL gerado pelo modelo e executa via <code class="loop-step-code">safe_sql()</code> no SQLite.
+            </div>
+            <div class="loop-badge-row">
+              <span class="chip chip--amber">stop_reason=tool_use</span>
+              <span class="chip chip--amber">safe_sql()</span>
+              <span class="chip chip--amber">municipal.db</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="loop-step">
+          <div class="loop-step-num step-4">4</div>
+          <div class="loop-step-body">
+            <div class="loop-step-title">Injeta tool_result e itera</div>
+            <div class="loop-step-desc">
+              Resultado SQL é injetado como <code class="loop-step-code">tool_result</code> no array de messages
+              e nova requisição é enviada para o modelo. Máximo de <strong style="color:var(--purple)">6 iterações</strong>.
+            </div>
+            <div class="loop-badge-row">
+              <span class="chip chip--purple">tool_result</span>
+              <span class="chip chip--purple">messages.append()</span>
+              <span class="chip chip--rose">max_iter = 6</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="loop-step">
+          <div class="loop-step-num step-5">5</div>
+          <div class="loop-step-body">
+            <div class="loop-step-title">Retorna texto + marcadores CHART</div>
+            <div class="loop-step-desc">
+              Quando <code class="loop-step-code">stop_reason == "end_turn"</code>, Flask retorna texto
+              com blocos <code class="loop-step-code">[CHART]{json}[/CHART]</code> embutidos.
+            </div>
+            <div class="loop-badge-row">
+              <span class="chip chip--cyan">stop_reason=end_turn</span>
+              <span class="chip chip--cyan">[CHART]{json}[/CHART]</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="loop-step">
+          <div class="loop-step-num step-6">6</div>
+          <div class="loop-step-body">
+            <div class="loop-step-title">Chart.js renderiza visualizações</div>
+            <div class="loop-step-desc">
+              Frontend parseia marcadores e renderiza gráficos interativos com Chart.js 4.
+            </div>
+            <div class="loop-badge-row">
+              <span class="chip chip--rose">bar</span>
+              <span class="chip chip--rose">horizontalBar</span>
+              <span class="chip chip--rose">line</span>
+              <span class="chip chip--rose">area</span>
+              <span class="chip chip--rose">multiBar</span>
+              <span class="chip chip--rose">stackedBar</span>
+              <span class="chip chip--rose">doughnut</span>
+              <span class="chip chip--rose">pie</span>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /loop-steps -->
+
+      <div class="iter-badge">
+        <span class="iter-dot"></span>
+        Loop iterativo · máx 6 ciclos · encerra em stop_reason = end_turn
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       5. DATABASE
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="card card--amber reveal">
+    <div class="section-tag">Seção 04</div>
+    <div class="section-title">
+      <span class="dot" style="background:var(--amber)"></span>
+      Banco de Dados SQLite
+    </div>
+
+    <div class="db-grid">
+      <!-- Fixed tables -->
+      <div class="db-group">
+        <div class="db-group-head db-group-head--amber">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Tabelas Fixas · Estruturadas
+        </div>
+        <div class="db-table-row">
+          <span class="db-table-name">receita</span>
+          <span class="db-table-rows">3.803 linhas</span>
+          <span class="db-tag db-tag--fixed">fixed</span>
+        </div>
+        <div class="db-table-row">
+          <span class="db-table-name">despesa</span>
+          <span class="db-table-rows">1.202 linhas</span>
+          <span class="db-tag db-tag--fixed">fixed</span>
+        </div>
+        <div class="db-table-row">
+          <span class="db-table-name">_bases_catalog</span>
+          <span class="db-table-rows">catálogo</span>
+          <span class="db-tag db-tag--fixed">meta</span>
+        </div>
+      </div>
+
+      <!-- Dynamic tables -->
+      <div class="db-group">
+        <div class="db-group-head db-group-head--green">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+          Tabelas Dinâmicas · Seeds &amp; Upload
+        </div>
+        <div class="db-table-row">
+          <span class="db-table-name">base_lancamento</span>
+          <span class="db-table-rows">~700k linhas</span>
+          <span class="db-tag db-tag--seed">seed</span>
+        </div>
+        <div class="db-table-row">
+          <span class="db-table-name">base_pagamento</span>
+          <span class="db-table-rows">~544k linhas</span>
+          <span class="db-tag db-tag--seed">seed</span>
+        </div>
+        <div class="db-table-row">
+          <span class="db-table-name">base_{name}</span>
+          <span class="db-table-rows">upload usuário</span>
+          <span class="db-tag db-tag--temp">temp</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats bar -->
+    <div style="margin-top:16px; padding:14px 16px; background:var(--surface-2); border-radius:var(--radius); border:1px solid var(--border); display:flex; gap:24px; flex-wrap:wrap;">
+      <div>
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);margin-bottom:2px;">TOTAL LINHAS</div>
+        <div style="font-family:var(--font-head);font-size:20px;font-weight:700;color:var(--amber);">~1.24M</div>
+      </div>
+      <div style="width:1px;background:var(--border);"></div>
+      <div>
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);margin-bottom:2px;">INGESTÃO</div>
+        <div style="font-family:var(--font-head);font-size:14px;font-weight:600;color:var(--text);">pandas + CSV/Excel</div>
+      </div>
+      <div style="width:1px;background:var(--border);"></div>
+      <div>
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);margin-bottom:2px;">SEGURANÇA SQL</div>
+        <div style="font-family:var(--font-head);font-size:14px;font-weight:600;color:var(--green);">safe_sql() · SELECT only</div>
+      </div>
+      <div style="width:1px;background:var(--border);"></div>
+      <div>
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);margin-bottom:2px;">ARQUIVO</div>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--amber);">data/municipal.db</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       6. CI/CD PIPELINE
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="card card--slate reveal">
+    <div class="section-tag">Seção 05</div>
+    <div class="section-title">
+      <span class="dot" style="background:var(--slate)"></span>
+      Pipeline CI/CD
+    </div>
+
+    <div class="pipeline">
+
+      <!-- GitHub -->
+      <div class="pipe-node pipe-node--slate">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="1.5">
+          <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/>
+        </svg>
+        <div class="pipe-node-label">GitHub</div>
+        <div class="pipe-node-sub">main branch<br/>push trigger</div>
+      </div>
+
+      <div class="pipe-arrow">
+        <svg width="48" height="20" viewBox="0 0 48 20">
+          <defs><marker id="p1" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#64748b"/></marker></defs>
+          <line class="arrow-line" x1="3" y1="10" x2="41" y2="10" stroke="#64748b" stroke-width="1.5" marker-end="url(#p1)"/>
+        </svg>
+      </div>
+
+      <!-- Railway -->
+      <div class="pipe-node pipe-node--blue">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="1.5">
+          <rect x="2" y="7" width="20" height="14" rx="2"/>
+          <path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/>
+          <line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/>
+        </svg>
+        <div class="pipe-node-label">Railway</div>
+        <div class="pipe-node-sub">webhook<br/>auto-deploy</div>
+      </div>
+
+      <div class="pipe-arrow">
+        <svg width="48" height="20" viewBox="0 0 48 20">
+          <defs><marker id="p2" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#3b82f6"/></marker></defs>
+          <line class="arrow-line" x1="3" y1="10" x2="41" y2="10" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#p2)"/>
+        </svg>
+      </div>
+
+      <!-- Nixpacks -->
+      <div class="pipe-node pipe-node--amber">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="1.5">
+          <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+        </svg>
+        <div class="pipe-node-label">Nixpacks</div>
+        <div class="pipe-node-sub">build<br/>requirements.txt</div>
+      </div>
+
+      <div class="pipe-arrow">
+        <svg width="48" height="20" viewBox="0 0 48 20">
+          <defs><marker id="p3" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#f59e0b"/></marker></defs>
+          <line class="arrow-line" x1="3" y1="10" x2="41" y2="10" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#p3)"/>
+        </svg>
+      </div>
+
+      <!-- Deploy -->
+      <div class="pipe-node pipe-node--green">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="1.5">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+        <div class="pipe-node-label">Deploy</div>
+        <div class="pipe-node-sub">health check<br/>live</div>
+      </div>
+
+      <div class="pipe-arrow">
+        <svg width="48" height="20" viewBox="0 0 48 20">
+          <defs><marker id="p4" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#10b981"/></marker></defs>
+          <line class="arrow-line" x1="3" y1="10" x2="41" y2="10" stroke="#10b981" stroke-width="1.5" marker-end="url(#p4)"/>
+        </svg>
+      </div>
+
+      <!-- Gunicorn -->
+      <div class="pipe-node pipe-node--cyan">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" stroke-width="1.5">
+          <rect x="4" y="4" width="16" height="16" rx="2"/>
+          <rect x="9" y="9" width="6" height="6"/>
+          <line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/>
+          <line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/>
+          <line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/>
+          <line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/>
+        </svg>
+        <div class="pipe-node-label">Gunicorn</div>
+        <div class="pipe-node-sub">2 workers<br/>Procfile</div>
+      </div>
+
+    </div><!-- /pipeline -->
+
+    <!-- Config files -->
+    <div style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap; justify-content:center;">
+      <span class="chip chip--slate">Procfile</span>
+      <span class="chip chip--slate">railway.toml</span>
+      <span class="chip chip--slate">requirements.txt</span>
+      <span class="chip chip--green">app.py</span>
+      <span class="chip chip--blue">GitHub Actions (via push)</span>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       7. SEEDS SYSTEM
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="card card--amber reveal">
+    <div class="section-tag">Seção 06</div>
+    <div class="section-title">
+      <span class="dot" style="background:var(--amber)"></span>
+      Sistema de Seeds e Ciclo de Vida de Bases
+    </div>
+
+    <div class="seeds-grid">
+      <!-- init_seeds flow -->
+      <div class="seeds-panel">
+        <div class="seeds-panel-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2z"/><path d="M12 8v4l3 3"/></svg>
+          init_seeds() · Startup
+        </div>
+        <div class="seeds-step">
+          <div class="seeds-num">1</div>
+          <div class="seeds-text">App inicializa e chama <code>init_seeds()</code> automaticamente no startup</div>
+        </div>
+        <div class="seeds-step">
+          <div class="seeds-num">2</div>
+          <div class="seeds-text">Verifica se tabelas seeds já existem no SQLite para evitar reimportação</div>
+        </div>
+        <div class="seeds-step">
+          <div class="seeds-num">3</div>
+          <div class="seeds-text">Lê arquivos de <code>data/seeds/</code>:<br/>
+            <code>Lancamento.csv</code> (~700k linhas)<br/>
+            <code>Pagamento.csv</code> (~544k linhas)</div>
+        </div>
+        <div class="seeds-step">
+          <div class="seeds-num">4</div>
+          <div class="seeds-text">pandas lê CSV → DataFrame → <code>df.to_sql()</code> no SQLite com flag <code>is_seed=1</code></div>
+        </div>
+        <div class="seeds-step">
+          <div class="seeds-num">5</div>
+          <div class="seeds-text">Registra no <code>_bases_catalog</code> com metadata e timestamp de ingestão</div>
+        </div>
+      </div>
+
+      <!-- Lifecycle -->
+      <div class="seeds-panel">
+        <div class="seeds-panel-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+          Ciclo de Vida das Bases
+        </div>
+
+        <div class="lifecycle">
+          <div class="lifecycle-item">
+            <div class="lifecycle-dot" style="background:var(--amber)"></div>
+            <div class="lifecycle-label">
+              <div style="color:var(--text);font-size:12px;margin-bottom:2px;">base_lancamento / base_pagamento</div>
+              <div style="font-size:10px;">Seeds oficiais · is_seed=1</div>
+            </div>
+            <span class="lifecycle-flag flag--keep">PERMANENTE</span>
+          </div>
+          <div class="lifecycle-item">
+            <div class="lifecycle-dot" style="background:var(--blue)"></div>
+            <div class="lifecycle-label">
+              <div style="color:var(--text);font-size:12px;margin-bottom:2px;">base_{name} — upload usuário</div>
+              <div style="font-size:10px;">Bases dinâmicas · is_seed=0</div>
+            </div>
+            <span class="lifecycle-flag flag--keep">SESSÃO</span>
+          </div>
+          <div class="lifecycle-item">
+            <div class="lifecycle-dot" style="background:var(--rose)"></div>
+            <div class="lifecycle-label">
+              <div style="color:var(--text);font-size:12px;margin-bottom:2px;">Logout do usuário</div>
+              <div style="font-size:10px;">DELETE WHERE is_seed=0</div>
+            </div>
+            <span class="lifecycle-flag flag--delete">APAGA</span>
+          </div>
+          <div class="lifecycle-item">
+            <div class="lifecycle-dot" style="background:var(--green)"></div>
+            <div class="lifecycle-label">
+              <div style="color:var(--text);font-size:12px;margin-bottom:2px;">Seeds após logout</div>
+              <div style="font-size:10px;">Permanecem intactas — is_seed=1</div>
+            </div>
+            <span class="lifecycle-flag flag--keep">PROTEGIDO</span>
+          </div>
+        </div>
+
+        <div style="margin-top:16px; padding:12px; background:rgba(245,158,11,0.06); border:1px solid rgba(245,158,11,0.2); border-radius:8px;">
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--amber);margin-bottom:4px;">POLÍTICA DE ISOLAMENTO</div>
+          <div style="font-size:11px;color:var(--text-dim);line-height:1.5;">
+            Bases de upload são isoladas por sessão. O logout limpa automaticamente os dados temporários,
+            preservando apenas seeds e dados fixos.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       EXTRA: ESTRUTURA DE ARQUIVOS
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="card card--green reveal">
+    <div class="section-tag">Seção 07</div>
+    <div class="section-title">
+      <span class="dot" style="background:var(--green)"></span>
+      Estrutura de Arquivos
+    </div>
+
+    <div class="file-tree">
+<span class="ft-dir">orcamento-municipal/</span>
+├── <span class="ft-py">app.py</span>                    <span class="ft-note">← Flask app, rotas, agentic loop</span>
+├── <span class="ft-cfg">Procfile</span>                 <span class="ft-note">← gunicorn app:app --workers 2</span>
+├── <span class="ft-cfg">railway.toml</span>             <span class="ft-note">← Railway deploy config</span>
+├── <span class="ft-cfg">requirements.txt</span>         <span class="ft-note">← flask, anthropic, pandas, gunicorn</span>
+│
+├── <span class="ft-dir">data/</span>
+│   ├── <span class="ft-db">municipal.db</span>          <span class="ft-note">← SQLite · tabelas fixas + dinâmicas</span>
+│   └── <span class="ft-dir">seeds/</span>
+│       ├── <span class="ft-csv">Lancamento.csv</span>    <span class="ft-note">← ~700k linhas</span>
+│       └── <span class="ft-csv">Pagamento.csv</span>     <span class="ft-note">← ~544k linhas</span>
+│
+├── <span class="ft-dir">templates/</span>
+│   ├── <span class="ft-html">base.html</span>           <span class="ft-note">← layout base + nav</span>
+│   ├── <span class="ft-html">login.html</span>
+│   ├── <span class="ft-html">index.html</span>          <span class="ft-note">← dashboard KPIs</span>
+│   ├── <span class="ft-html">receita.html</span>
+│   ├── <span class="ft-html">despesa.html</span>
+│   ├── <span class="ft-html">chat.html</span>           <span class="ft-note">← interface agentic loop</span>
+│   └── <span class="ft-html">bases.html</span>          <span class="ft-note">← upload e gerenciamento</span>
+│
+└── <span class="ft-dir">static/</span>
+    └── <span class="ft-dir">img/</span>                  <span class="ft-note">← assets estáticos</span>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       EXTRA: AUTENTICAÇÃO
+  ═══════════════════════════════════════════════════════════════════ -->
+  <div class="card card--blue reveal">
+    <div class="section-tag">Seção 08</div>
+    <div class="section-title">
+      <span class="dot" style="background:var(--blue)"></span>
+      Autenticação
+    </div>
+
+    <div class="auth-grid">
+      <div class="auth-card">
+        <div class="auth-card-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="1.5">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0110 0v4"/>
+          </svg>
+        </div>
+        <div class="auth-card-title">Session Flask</div>
+        <div class="auth-card-desc">Server-side session<br/>cookie seguro<br/>sem JWT</div>
+      </div>
+      <div class="auth-card">
+        <div class="auth-card-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="1.5">
+            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+          </svg>
+        </div>
+        <div class="auth-card-title">USERS dict</div>
+        <div class="auth-card-desc">Credenciais hardcoded<br/>no app.py<br/>sem banco</div>
+      </div>
+      <div class="auth-card">
+        <div class="auth-card-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="1.5">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <div class="auth-card-title">@login_required</div>
+        <div class="auth-card-desc">Decorator em todas<br/>as rotas protegidas<br/>redirect → /login</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div style="text-align:center; padding:8px 0;">
+    <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);letter-spacing:0.1em;">
+      SQLTech · Orçamento Municipal IA · Arquitetura v1.0 · 2025
+    </div>
+  </div>
+
+</div><!-- /page -->
+
+<script>
+  // Scroll reveal
+  const revealEls = document.querySelectorAll('.reveal');
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e, i) => {
+      if (e.isIntersecting) {
+        setTimeout(() => e.target.classList.add('visible'), i * 60);
+        io.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.08 });
+
+  revealEls.forEach(el => io.observe(el));
+
+  // Immediately reveal elements already in viewport on load
+  window.addEventListener('load', () => {
+    revealEls.forEach(el => {
+      const rect = el.getBoundingClientRect();
+      if (rect.top < window.innerHeight) {
+        el.classList.add('visible');
+      }
+    });
+  });
+</script>
+</body>
+</html>
