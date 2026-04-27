@@ -3,6 +3,7 @@ from functools import wraps
 import sqlite3, os, requests, json, re
 from datetime import datetime
 import pandas as pd
+from sqlalchemy import create_engine, text
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "iqvia-pharma-2026-xK9m")
@@ -12,23 +13,31 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "data", "iqvia.db")
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 USE_POSTGRES = bool(DATABASE_URL)
 
-# ── DB Layer ──────────────────────────────────────────────────────────────
-def get_conn():
-    if USE_POSTGRES:
-        import psycopg2
-        url = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-        return psycopg2.connect(url)
-    return sqlite3.connect(DB_PATH)
+# ── DB Layer (SQLAlchemy + pg8000, sem dependência de libpq) ──────────────
+_engine = None
+
+def get_engine():
+    global _engine
+    if _engine is None:
+        url = DATABASE_URL
+        url = url.replace("postgres://", "postgresql+pg8000://", 1)
+        url = url.replace("postgresql://", "postgresql+pg8000://", 1)
+        _engine = create_engine(url, pool_pre_ping=True)
+    return _engine
+
+def _to_named(sql, params):
+    named_sql, named_params = sql, {}
+    for i, p in enumerate(params):
+        named_sql = named_sql.replace("?", f":p{i}", 1)
+        named_params[f"p{i}"] = p
+    return named_sql, named_params
 
 def query(sql, params=()):
     if USE_POSTGRES:
-        import psycopg2.extras
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute(sql.replace("?", "%s"), params)
-        rows = [dict(r) for r in cur.fetchall()]
-        conn.close()
-        return rows
+        named_sql, named_params = _to_named(sql, params)
+        with get_engine().connect() as conn:
+            result = conn.execute(text(named_sql), named_params)
+            return [dict(r._mapping) for r in result.fetchall()]
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
     cur = con.execute(sql, params)
@@ -38,11 +47,10 @@ def query(sql, params=()):
 
 def execute(sql, params=()):
     if USE_POSTGRES:
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute(sql.replace("?", "%s"), params)
-        conn.commit()
-        conn.close()
+        named_sql, named_params = _to_named(sql, params)
+        with get_engine().connect() as conn:
+            conn.execute(text(named_sql), named_params)
+            conn.commit()
         return
     con = sqlite3.connect(DB_PATH)
     con.execute(sql, params)
@@ -52,17 +60,13 @@ def execute(sql, params=()):
 def table_exists(name):
     if USE_POSTGRES:
         rows = query("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name=?) AS ex", (name,))
-        return rows[0]["ex"]
+        return bool(rows[0]["ex"])
     rows = query("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (name,))
     return bool(rows)
 
 def _df_to_table(df, table_name):
     if USE_POSTGRES:
-        from sqlalchemy import create_engine
-        url = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-        engine = create_engine(url)
-        df.to_sql(table_name, engine, if_exists="replace", index=False, chunksize=5000)
-        engine.dispose()
+        df.to_sql(table_name, get_engine(), if_exists="replace", index=False, chunksize=5000)
     else:
         con = sqlite3.connect(DB_PATH)
         df.to_sql(table_name, con, if_exists="replace", index=False)
