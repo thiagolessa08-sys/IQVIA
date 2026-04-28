@@ -187,8 +187,12 @@ except Exception as e:
 # ── Helpers de filtro ─────────────────────────────────────────────────────
 def build_filters(args):
     clauses, params = [], []
-    if args.get("molecula"):
-        clauses.append("molecula = ?"); params.append(args["molecula"].strip())
+    mol_raw = args.get("molecula", "")
+    mols = [m.strip() for m in mol_raw.split(",") if m.strip()]
+    if mols:
+        placeholders = ",".join(["?"] * len(mols))
+        clauses.append(f"molecula IN ({placeholders})")
+        params.extend(mols)
     if args.get("laboratorio"):
         clauses.append("laboratorio = ?"); params.append(args["laboratorio"])
     if args.get("estado"):
@@ -237,9 +241,11 @@ def filter_moleculas():
 @app.route("/api/filters/laboratorios")
 @login_required
 def filter_laboratorios():
-    mol = request.args.get("molecula", "")
-    if mol:
-        rows = query("SELECT DISTINCT laboratorio FROM prescricoes WHERE molecula=? AND laboratorio IS NOT NULL ORDER BY laboratorio", (mol,))
+    mol_raw = request.args.get("molecula", "")
+    mols = [m.strip() for m in mol_raw.split(",") if m.strip()]
+    if mols:
+        placeholders = ",".join(["?"] * len(mols))
+        rows = query(f"SELECT DISTINCT laboratorio FROM prescricoes WHERE molecula IN ({placeholders}) AND laboratorio IS NOT NULL ORDER BY laboratorio", tuple(mols))
         return jsonify([r["laboratorio"] for r in rows])
     cached = cache_get("filter_laboratorios")
     if cached: return jsonify(cached)

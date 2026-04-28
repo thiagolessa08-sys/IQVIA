@@ -87,6 +87,27 @@
   select{background:var(--surface-2);border:1px solid var(--line);color:var(--ink);padding:7px 12px;border-radius:10px;font-size:13px;font-family:inherit;cursor:pointer;outline:none;transition:border-color .15s;}
   select:focus{border-color:var(--blue);}
   .fsep{width:1px;height:22px;background:var(--line-2);}
+  /* MULTI-SELECT */
+  .multi-select{position:relative;}
+  .ms-trigger{display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--line);color:var(--ink);padding:7px 12px;border-radius:10px;font-size:13px;font-family:inherit;cursor:pointer;white-space:nowrap;min-width:175px;justify-content:space-between;transition:border-color .15s;}
+  .ms-trigger:hover{border-color:var(--ink-3);}
+  .ms-trigger.has-value{border-color:var(--blue);background:var(--blue-soft);color:var(--blue);}
+  .ms-trigger svg{flex-shrink:0;transition:transform .15s;color:var(--ink-3);}
+  .ms-trigger.open svg{transform:rotate(180deg);}
+  .ms-dropdown{position:absolute;top:calc(100% + 6px);left:0;z-index:300;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.14);width:268px;overflow:hidden;}
+  .ms-search{padding:10px 10px 6px;}
+  .ms-search input{width:100%;border:1px solid var(--line-2);border-radius:9px;padding:7px 10px;font-size:13px;font-family:inherit;background:var(--surface-2);color:var(--ink);outline:none;}
+  .ms-search input:focus{border-color:var(--blue);}
+  .ms-options{max-height:210px;overflow-y:auto;padding:4px 6px;}
+  .ms-opt{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--ink-2);transition:background .1s;user-select:none;}
+  .ms-opt:hover{background:var(--surface-2);}
+  .ms-opt input[type=checkbox]{width:15px;height:15px;accent-color:var(--blue);flex-shrink:0;cursor:pointer;margin:0;}
+  .ms-opt.checked{color:var(--ink);font-weight:500;}
+  .ms-footer{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3);}
+  .ms-footer button{border:none;background:none;font-size:12px;color:var(--blue);font-family:inherit;cursor:pointer;font-weight:600;padding:0;}
+  .ms-tags{display:flex;flex-wrap:wrap;gap:6px;padding:0 0 10px;}
+  .ms-tag{display:inline-flex;align-items:center;gap:4px;background:var(--blue-soft);border:1px solid oklch(0.85 0.04 230);color:var(--blue-deep);border-radius:999px;padding:3px 8px 3px 12px;font-size:12px;font-weight:600;}
+  .ms-tag button{background:none;border:none;cursor:pointer;color:var(--blue);padding:0;display:flex;align-items:center;line-height:1;font-size:16px;}
 
   /* GRID */
   .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:18px;}
@@ -214,7 +235,7 @@
   <div class="topbar">
     <div class="search">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="var(--search-ink)" stroke-width="1.8"/><path d="M20 20l-3.5-3.5" stroke="var(--search-ink)" stroke-width="1.8" stroke-linecap="round"/></svg>
-      <input placeholder="Buscar molécula, laboratório ou médico..." readonly onclick="location.href='/chat'">
+      <input placeholder="Buscar molécula, laboratório, marca..." readonly onclick="location.href='/chat'">
     </div>
     <div class="topbar-right">
       <div class="theme-toggle" role="group">
@@ -254,7 +275,17 @@
 
   <div class="filters-row">
     <span class="filter-label">Filtros</span>
-    <select id="fMolecula" onchange="onMoleculaChange()"><option value="">Todas as moléculas</option></select>
+    <div class="multi-select" id="msWrap">
+      <button type="button" class="ms-trigger" id="msTrigger" onclick="toggleMs()">
+        <span id="msLabel">Todas as moléculas</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="ms-dropdown" id="msDropdown" style="display:none;">
+        <div class="ms-search"><input type="text" id="msSearch" placeholder="Buscar molécula..." oninput="filterMsOptions()"></div>
+        <div class="ms-options" id="msOptions"></div>
+        <div class="ms-footer"><button onclick="clearMs()">Limpar seleção</button><span id="msCount">0 selecionadas</span></div>
+      </div>
+    </div>
     <select id="fLaboratorio"><option value="">Todos os laboratórios</option></select>
     <select id="fEstado"><option value="">Todos os estados</option></select>
     <div class="fsep"></div>
@@ -262,6 +293,7 @@
     <select id="fPeriodoIni"><option value="">De</option></select>
     <select id="fPeriodoFim"><option value="">Até</option></select>
   </div>
+  <div id="msTags" class="ms-tags"></div>
 
   <div class="grid">
 
@@ -283,14 +315,6 @@
       </div>
       <div class="snum" id="kpiMeds" style="color:var(--blue)">—</div>
       <div class="smeta">unidades dispensadas</div>
-    </div>
-
-    <div class="card stat c-3">
-      <div class="slbl">Médicos Ativos
-        <span class="sarrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M9 7h8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-      </div>
-      <div class="snum" id="kpiMedicos">—</div>
-      <div class="smeta">prescritores no período</div>
     </div>
 
     <div class="card stat c-3">
@@ -327,7 +351,6 @@
         <div class="tabs">
           <button class="on" onclick="setGeoGroup('estado',this)">Estado</button>
           <button onclick="setGeoGroup('cidade',this)">Cidade</button>
-          <button onclick="setGeoGroup('brick',this)">Brick</button>
         </div>
       </div>
       <div id="geoList"><div class="loading"><div class="spinner"></div></div></div>
@@ -355,9 +378,48 @@ function fmt(n){
 }
 function fmtM(n){return`<span style="font-family:'JetBrains Mono',monospace">${fmt(n)}</span>`;}
 
+let selectedMols=[],allMols=[];
+function buildMs(mols){allMols=mols;renderMsOptions(allMols);updateMsTrigger();}
+function getMsVisible(){const q=document.getElementById('msSearch').value.toLowerCase().trim();return q?allMols.filter(m=>m.toLowerCase().includes(q)):allMols;}
+function filterMsOptions(){renderMsOptions(getMsVisible());}
+function renderMsOptions(mols){
+  document.getElementById('msOptions').innerHTML=mols.map(m=>{
+    const sel=selectedMols.includes(m),esc=m.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return `<label class="ms-opt${sel?' checked':''}"><input type="checkbox" ${sel?'checked':''} onchange="toggleMol('${esc}',this.checked)">${m}</label>`;
+  }).join('');
+}
+function toggleMol(m,on){
+  if(on){if(!selectedMols.includes(m))selectedMols.push(m);}
+  else{selectedMols=selectedMols.filter(x=>x!==m);}
+  renderMsOptions(getMsVisible());updateMsTrigger();renderMsTags();onMoleculaChange();
+}
+function updateMsTrigger(){
+  const n=selectedMols.length;
+  document.getElementById('msLabel').textContent=n?`${n} molécula${n>1?'s':''} selecionada${n>1?'s':''}`:'Todas as moléculas';
+  document.getElementById('msTrigger').classList.toggle('has-value',n>0);
+  document.getElementById('msCount').textContent=`${n} selecionada${n!==1?'s':''}`;
+}
+function clearMs(){selectedMols=[];renderMsOptions(getMsVisible());updateMsTrigger();renderMsTags();onMoleculaChange();}
+function renderMsTags(){
+  const wrap=document.getElementById('msTags');if(!wrap)return;
+  wrap.innerHTML=selectedMols.map(m=>{const esc=m.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return `<span class="ms-tag">${m}<button onclick="toggleMol('${esc}',false)" aria-label="Remover">×</button></span>`;
+  }).join('');
+}
+function toggleMs(){
+  const dd=document.getElementById('msDropdown'),btn=document.getElementById('msTrigger');
+  const open=dd.style.display==='block';
+  dd.style.display=open?'none':'block';btn.classList.toggle('open',!open);
+  if(!open)setTimeout(()=>document.getElementById('msSearch').focus(),50);
+}
+document.addEventListener('click',function(e){
+  const w=document.getElementById('msWrap');
+  if(w&&!w.contains(e.target)){document.getElementById('msDropdown').style.display='none';document.getElementById('msTrigger').classList.remove('open');}
+});
+
 function params(){
   const p=new URLSearchParams(),v=id=>document.getElementById(id).value;
-  if(v('fMolecula'))   p.set('molecula',   v('fMolecula'));
+  if(selectedMols.length) p.set('molecula',selectedMols.join(','));
   if(v('fLaboratorio'))p.set('laboratorio',v('fLaboratorio'));
   if(v('fEstado'))     p.set('estado',     v('fEstado'));
   if(v('fPeriodoIni')) p.set('periodo_ini',v('fPeriodoIni'));
@@ -375,27 +437,32 @@ function populateSelect(id,items,ph){
 }
 async function loadFilters(){
   const d=await get('/api/filters/all');
-  populateSelect('fMolecula',   d.moleculas,    'Todas as moléculas');
+  buildMs(d.moleculas);
   populateSelect('fLaboratorio',d.laboratorios, 'Todos os laboratórios');
   populateSelect('fEstado',     d.estados,      'Todos os estados');
   populateSelect('fPeriodoIni', d.periodos,     'De');
   populateSelect('fPeriodoFim', d.periodos,     'Até');
 }
 async function onMoleculaChange(){
-  const mol=document.getElementById('fMolecula').value;
-  populateSelect('fLaboratorio',await get('/api/filters/laboratorios'+(mol?'?molecula='+encodeURIComponent(mol):'')), 'Todos os laboratórios');
+  const qs=selectedMols.length?'?molecula='+selectedMols.map(encodeURIComponent).join(','):'';
+  populateSelect('fLaboratorio',await get('/api/filters/laboratorios'+qs),'Todos os laboratórios');
 }
 function clearFilters(){
-  ['fMolecula','fLaboratorio','fEstado','fPeriodoIni','fPeriodoFim'].forEach(id=>document.getElementById(id).value='');
+  clearMs();
+  ['fLaboratorio','fEstado','fPeriodoIni','fPeriodoFim'].forEach(id=>document.getElementById(id).value='');
   loadAll();
 }
-function applyFilters(){loadAll();}
+async function applyFilters(){
+  const loader=document.getElementById('pageLoader');
+  loader.classList.remove('hidden');
+  await loadAll();
+  loader.classList.add('hidden');
+}
 
 async function loadKPIs(){
   const d=await get('/api/market/kpis?'+params());
   document.getElementById('kpiReceitas').textContent=fmt(d.total_receitas);
   document.getElementById('kpiMeds').textContent    =fmt(d.total_medicamentos);
-  document.getElementById('kpiMedicos').textContent =fmt(d.qtde_medicos);
   document.getElementById('kpiLabs').textContent    =fmt(d.qtde_laboratorios);
   document.getElementById('kpiMarcas').textContent  =fmt(d.qtde_marcas);
   document.getElementById('kpiMols').textContent    =fmt(d.qtde_moleculas);
@@ -446,7 +513,7 @@ async function loadShare(){
   });
   const max=data[0]?.receitas||1;
   document.getElementById('shareTable').innerHTML=`<table>
-    <thead><tr><th>#</th><th>${shareGroup.charAt(0).toUpperCase()+shareGroup.slice(1)}</th><th>Receitas</th><th>Share</th><th>Médicos</th></tr></thead>
+    <thead><tr><th>#</th><th>${shareGroup.charAt(0).toUpperCase()+shareGroup.slice(1)}</th><th>Receitas</th><th>Share</th></tr></thead>
     <tbody>${data.map((r,i)=>`<tr>
       <td><span class="badge badge-blue">${i+1}</span></td>
       <td><strong>${r.nome||'—'}</strong></td>
@@ -457,7 +524,6 @@ async function loadShare(){
         </div>
         <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink-3);min-width:42px">${r.share}%</span>
       </div></td>
-      <td><span class="badge badge-green">${fmt(r.medicos)}</span></td>
     </tr>`).join('')}</tbody></table>`;
 }
 
