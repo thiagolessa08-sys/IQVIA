@@ -373,15 +373,12 @@ function populateSelect(id,items,ph){
   s.innerHTML=`<option value="">${ph}</option>`+items.map(v=>`<option value="${v}"${v===cur?' selected':''}>${v}</option>`).join('');
 }
 async function loadFilters(){
-  const[mols,labs,estados,periodos]=await Promise.all([
-    get('/api/filters/moleculas'),get('/api/filters/laboratorios'),
-    get('/api/filters/estados'),  get('/api/filters/periodos'),
-  ]);
-  populateSelect('fMolecula',   mols,   'Todas as moléculas');
-  populateSelect('fLaboratorio',labs,   'Todos os laboratórios');
-  populateSelect('fEstado',     estados,'Todos os estados');
-  populateSelect('fPeriodoIni', periodos,'De');
-  populateSelect('fPeriodoFim', periodos,'Até');
+  const d=await get('/api/filters/all');
+  populateSelect('fMolecula',   d.moleculas,    'Todas as moléculas');
+  populateSelect('fLaboratorio',d.laboratorios, 'Todos os laboratórios');
+  populateSelect('fEstado',     d.estados,      'Todos os estados');
+  populateSelect('fPeriodoIni', d.periodos,     'De');
+  populateSelect('fPeriodoFim', d.periodos,     'Até');
 }
 async function onMoleculaChange(){
   const mol=document.getElementById('fMolecula').value;
@@ -501,8 +498,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   const name=m?decodeURIComponent(m[1]):'Usuário';
   document.getElementById('userName').textContent=name;
   document.getElementById('userAvatar').textContent=name.charAt(0).toUpperCase();
-  await loadFilters();
-  await loadAll();
+  await Promise.all([loadFilters(), loadAll()]);
   document.getElementById('pageLoader').classList.add('hidden');
 });
 </script>

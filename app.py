@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, render_template, request, session, redirect, url_for
 from functools import wraps
-import sqlite3, os, requests, json, re
+import sqlite3, os, requests, json, re, time
 from datetime import datetime
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -80,6 +80,22 @@ def _df_to_table(df, table_name):
         df.to_sql(table_name, con, if_exists="replace", index=False)
         con.close()
 
+# ── Cache simples em memória (TTL) ───────────────────────────────────────
+_cache = {}
+CACHE_TTL = 120  # segundos
+
+def cache_get(key):
+    entry = _cache.get(key)
+    if entry and (time.time() - entry["ts"]) < CACHE_TTL:
+        return entry["data"]
+    return None
+
+def cache_set(key, data):
+    _cache[key] = {"data": data, "ts": time.time()}
+
+def cache_clear():
+    _cache.clear()
+
 # ── Auth ──────────────────────────────────────────────────────────────────
 USERS = {
     "admin@iqvia.com":              {"password": "Iqvia2026",   "name": "Admin IQVIA"},
@@ -143,8 +159,28 @@ def init_prescricoes():
     _df_to_table(df, "prescricoes")
     print(f"[init] {len(df)} linhas carregadas.")
 
+def ensure_indexes():
+    if not USE_POSTGRES:
+        return
+    idxs = [
+        ("idx_presc_molecula",    "prescricoes(molecula)"),
+        ("idx_presc_laboratorio", "prescricoes(laboratorio)"),
+        ("idx_presc_estado",      "prescricoes(estado)"),
+        ("idx_presc_periodo",     "prescricoes(periodo)"),
+        ("idx_presc_crm",         "prescricoes(crm)"),
+        ("idx_presc_marca",       "prescricoes(marca)"),
+    ]
+    for name, cols in idxs:
+        try:
+            with get_engine().connect() as conn:
+                conn.execute(text(f"CREATE INDEX IF NOT EXISTS {name} ON {cols}"))
+                conn.commit()
+        except Exception:
+            pass
+
 try:
     init_prescricoes()
+    ensure_indexes()
 except Exception as e:
     print(f"[init] Aviso: {e}")
 
@@ -168,43 +204,83 @@ def build_filters(args):
     return " AND ".join(clauses), tuple(params)
 
 # ── Filtros disponíveis ───────────────────────────────────────────────────
+@app.route("/api/filters/all")
+@login_required
+def filter_all():
+    """Retorna todos os filtros em uma única chamada."""
+    cached = cache_get("filters_all")
+    if cached:
+        return jsonify(cached)
+    mols     = query("SELECT DISTINCT molecula    FROM prescricoes WHERE molecula    IS NOT NULL ORDER BY molecula")
+    labs     = query("SELECT DISTINCT laboratorio FROM prescricoes WHERE laboratorio IS NOT NULL ORDER BY laboratorio")
+    estados  = query("SELECT DISTINCT estado      FROM prescricoes WHERE estado      IS NOT NULL ORDER BY estado")
+    periodos = query("SELECT DISTINCT periodo     FROM prescricoes WHERE periodo     IS NOT NULL ORDER BY periodo")
+    result = {
+        "moleculas":    [r["molecula"]    for r in mols],
+        "laboratorios": [r["laboratorio"] for r in labs],
+        "estados":      [r["estado"]      for r in estados],
+        "periodos":     [r["periodo"]     for r in periodos],
+    }
+    cache_set("filters_all", result)
+    return jsonify(result)
+
 @app.route("/api/filters/moleculas")
 @login_required
 def filter_moleculas():
-    rows = query("SELECT DISTINCT molecula FROM prescricoes ORDER BY molecula")
-    return jsonify([r["molecula"] for r in rows if r["molecula"]])
+    cached = cache_get("filter_moleculas")
+    if cached: return jsonify(cached)
+    rows = query("SELECT DISTINCT molecula FROM prescricoes WHERE molecula IS NOT NULL ORDER BY molecula")
+    data = [r["molecula"] for r in rows]
+    cache_set("filter_moleculas", data)
+    return jsonify(data)
 
 @app.route("/api/filters/laboratorios")
 @login_required
 def filter_laboratorios():
     mol = request.args.get("molecula", "")
     if mol:
-        rows = query("SELECT DISTINCT laboratorio FROM prescricoes WHERE molecula=? ORDER BY laboratorio", (mol,))
-    else:
-        rows = query("SELECT DISTINCT laboratorio FROM prescricoes ORDER BY laboratorio")
-    return jsonify([r["laboratorio"] for r in rows if r["laboratorio"]])
+        rows = query("SELECT DISTINCT laboratorio FROM prescricoes WHERE molecula=? AND laboratorio IS NOT NULL ORDER BY laboratorio", (mol,))
+        return jsonify([r["laboratorio"] for r in rows])
+    cached = cache_get("filter_laboratorios")
+    if cached: return jsonify(cached)
+    rows = query("SELECT DISTINCT laboratorio FROM prescricoes WHERE laboratorio IS NOT NULL ORDER BY laboratorio")
+    data = [r["laboratorio"] for r in rows]
+    cache_set("filter_laboratorios", data)
+    return jsonify(data)
 
 @app.route("/api/filters/estados")
 @login_required
 def filter_estados():
-    rows = query("SELECT DISTINCT estado FROM prescricoes ORDER BY estado")
-    return jsonify([r["estado"] for r in rows if r["estado"]])
+    cached = cache_get("filter_estados")
+    if cached: return jsonify(cached)
+    rows = query("SELECT DISTINCT estado FROM prescricoes WHERE estado IS NOT NULL ORDER BY estado")
+    data = [r["estado"] for r in rows]
+    cache_set("filter_estados", data)
+    return jsonify(data)
 
 @app.route("/api/filters/periodos")
 @login_required
 def filter_periodos():
-    rows = query("SELECT DISTINCT periodo FROM prescricoes ORDER BY periodo")
-    return jsonify([r["periodo"] for r in rows if r["periodo"]])
+    cached = cache_get("filter_periodos")
+    if cached: return jsonify(cached)
+    rows = query("SELECT DISTINCT periodo FROM prescricoes WHERE periodo IS NOT NULL ORDER BY periodo")
+    data = [r["periodo"] for r in rows]
+    cache_set("filter_periodos", data)
+    return jsonify(data)
 
 @app.route("/api/filters/cidades")
 @login_required
 def filter_cidades():
     estado = request.args.get("estado", "")
     if estado:
-        rows = query("SELECT DISTINCT cidade FROM prescricoes WHERE estado=? ORDER BY cidade", (estado,))
-    else:
-        rows = query("SELECT DISTINCT cidade FROM prescricoes ORDER BY cidade")
-    return jsonify([r["cidade"] for r in rows if r["cidade"]])
+        rows = query("SELECT DISTINCT cidade FROM prescricoes WHERE estado=? AND cidade IS NOT NULL ORDER BY cidade", (estado,))
+        return jsonify([r["cidade"] for r in rows])
+    cached = cache_get("filter_cidades")
+    if cached: return jsonify(cached)
+    rows = query("SELECT DISTINCT cidade FROM prescricoes WHERE cidade IS NOT NULL ORDER BY cidade")
+    data = [r["cidade"] for r in rows]
+    cache_set("filter_cidades", data)
+    return jsonify(data)
 
 # ── Market Intelligence ───────────────────────────────────────────────────
 @app.route("/api/market/kpis")
@@ -212,6 +288,9 @@ def filter_cidades():
 def market_kpis():
     filters, params = build_filters(request.args)
     w = f"WHERE {filters}" if filters else ""
+    ck = f"kpis:{filters}:{params}"
+    cached = cache_get(ck)
+    if cached: return jsonify(cached)
     r = query(f"""
         SELECT
             COALESCE(SUM(qtde_rec), 0)       AS total_receitas,
@@ -222,6 +301,7 @@ def market_kpis():
             COUNT(DISTINCT molecula)         AS qtde_moleculas
         FROM prescricoes {w}
     """, params)
+    cache_set(ck, r[0])
     return jsonify(r[0])
 
 @app.route("/api/market/share")
@@ -232,20 +312,21 @@ def market_share():
         group_by = "laboratorio"
     filters, params = build_filters(request.args)
     w = f"WHERE {filters}" if filters else ""
-    total_q = query(f"SELECT COALESCE(SUM(qtde_rec), 1) AS total FROM prescricoes {w}", params)
-    total = total_q[0]["total"] or 1
+    ck = f"share:{group_by}:{filters}:{params}"
+    cached = cache_get(ck)
+    if cached: return jsonify(cached)
     rows = query(f"""
         SELECT {group_by} AS nome,
-               SUM(qtde_rec)           AS receitas,
-               SUM(qtde_med)           AS medicamentos,
-               COUNT(DISTINCT crm)     AS medicos
+               SUM(qtde_rec)                                        AS receitas,
+               SUM(qtde_med)                                        AS medicamentos,
+               COUNT(DISTINCT crm)                                  AS medicos,
+               ROUND(SUM(qtde_rec) * 100.0 / SUM(SUM(qtde_rec)) OVER (), 2) AS share
         FROM prescricoes {w}
         GROUP BY {group_by}
         ORDER BY receitas DESC
         LIMIT 15
     """, params)
-    for r in rows:
-        r["share"] = round((r["receitas"] / total) * 100, 2)
+    cache_set(ck, rows)
     return jsonify(rows)
 
 @app.route("/api/market/evolucao")
@@ -253,6 +334,9 @@ def market_share():
 def market_evolucao():
     filters, params = build_filters(request.args)
     w = f"WHERE {filters}" if filters else ""
+    ck = f"evolucao:{filters}:{params}"
+    cached = cache_get(ck)
+    if cached: return jsonify(cached)
     rows = query(f"""
         SELECT periodo,
                SUM(qtde_rec)  AS receitas,
@@ -261,6 +345,7 @@ def market_evolucao():
         GROUP BY periodo
         ORDER BY periodo
     """, params)
+    cache_set(ck, rows)
     return jsonify(rows)
 
 @app.route("/api/market/geografico")
@@ -271,6 +356,9 @@ def market_geografico():
         group_by = "estado"
     filters, params = build_filters(request.args)
     w = f"WHERE {filters}" if filters else ""
+    ck = f"geo:{group_by}:{filters}:{params}"
+    cached = cache_get(ck)
+    if cached: return jsonify(cached)
     rows = query(f"""
         SELECT {group_by}            AS regiao,
                SUM(qtde_rec)         AS receitas,
@@ -281,6 +369,7 @@ def market_geografico():
         ORDER BY receitas DESC
         LIMIT 20
     """, params)
+    cache_set(ck, rows)
     return jsonify(rows)
 
 # ── Prescritores ──────────────────────────────────────────────────────────
@@ -290,6 +379,9 @@ def prescritores_ranking():
     filters, params = build_filters(request.args)
     w = f"WHERE {filters}" if filters else ""
     limit = min(request.args.get("limit", 200, type=int), 500)
+    ck = f"ranking:{filters}:{params}:{limit}"
+    cached = cache_get(ck)
+    if cached: return jsonify(cached)
     rows = query(f"""
         SELECT crm, medico, cidade, estado, brick,
                SUM(qtde_rec)              AS total_receitas,
@@ -301,6 +393,7 @@ def prescritores_ranking():
         ORDER BY total_receitas DESC
         LIMIT {limit}
     """, params)
+    cache_set(ck, rows)
     return jsonify(rows)
 
 @app.route("/api/prescritores/perfil/<crm_id>")
@@ -476,6 +569,8 @@ def admin_load_post():
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
 
+    cache_clear()
+    ensure_indexes()
     return render_template("admin_load.html", success=True, row_count=loaded,
                            table_exists=True)
 
