@@ -2,279 +2,349 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=1440">
 <title>Prescritores — IQVIA</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-  :root {
-    --bg: #f0f4f8; --sidebar: #ffffff; --card: #ffffff;
-    --border: #e5e7eb; --blue: #1a56db; --blue-lt: #eff6ff; --blue-dk: #1e40af;
-    --purple: #7c3aed; --green: #059669; --yellow: #d97706; --red: #dc2626; --cyan: #0891b2;
-    --text: #111827; --muted: #6b7280; --radius: 12px; --sw: 240px;
+  :root,[data-theme="light"]{
+    --bg:oklch(0.97 0.006 220);--surface:#fff;--surface-2:oklch(0.95 0.01 220);
+    --ink:oklch(0.18 0.02 220);--ink-2:oklch(0.42 0.02 220);--ink-3:oklch(0.62 0.015 220);
+    --line:oklch(0.92 0.01 220);--line-2:oklch(0.88 0.012 220);
+    --bar-track:oklch(0.93 0.012 220);--shadow-sm:0 1px 3px rgba(0,0,0,.07);
+    --badge-bg:oklch(0.88 0.04 240);--icon-ink:#1a2a3a;--search-ink:#6b8099;
+    --blue:oklch(0.48 0.13 240);--blue-deep:oklch(0.30 0.08 240);--blue-ink:oklch(0.22 0.07 240);
+    --blue-soft:oklch(0.94 0.03 230);
+    --purple:oklch(0.46 0.18 300);--purple-deep:oklch(0.28 0.10 300);--purple-soft:oklch(0.94 0.04 300);
+    --amber:oklch(0.72 0.15 75);--amber-soft:oklch(0.96 0.04 80);
+    --radius:22px;--radius-sm:14px;
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: 'DM Sans', system-ui, sans-serif; min-height: 100vh; display: flex; }
-  h1, h2, h3, .page-title, .sidebar-logo, .card-title, .kpi-value { font-family: 'Space Grotesk', sans-serif; }
+  [data-theme="dark"]{
+    --bg:oklch(0.16 0.012 230);--surface:oklch(0.21 0.014 230);--surface-2:oklch(0.26 0.014 230);
+    --ink:oklch(0.96 0.006 95);--ink-2:oklch(0.78 0.01 220);--ink-3:oklch(0.58 0.012 220);
+    --line:oklch(0.28 0.014 230);--line-2:oklch(0.32 0.014 230);
+    --bar-track:oklch(0.28 0.014 230);--shadow-sm:0 1px 2px rgba(0,0,0,.35);
+    --badge-bg:oklch(0.34 0.06 240);--icon-ink:oklch(0.92 0.01 220);--search-ink:oklch(0.62 0.01 220);
+    --blue:oklch(0.64 0.13 240);--blue-deep:oklch(0.26 0.07 240);--blue-ink:oklch(0.22 0.07 240);--blue-soft:oklch(0.30 0.05 230);
+    --purple:oklch(0.68 0.18 300);--purple-deep:oklch(0.24 0.10 300);--purple-soft:oklch(0.30 0.06 300);
+    --amber:oklch(0.78 0.14 75);--amber-soft:oklch(0.28 0.06 80);
+  }
+  *{box-sizing:border-box;}html,body{margin:0;padding:0;}
+  body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;}
+
+  .app{display:grid;grid-template-columns:260px 1fr;min-height:100vh;max-width:1440px;margin:0 auto;}
 
   /* SIDEBAR */
-  .sidebar { width: var(--sw); min-height: 100vh; background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; z-index: 100; }
-  .sidebar-logo { padding: 20px 20px 16px; font-size: 26px; font-weight: 800; color: var(--blue); letter-spacing: 1px; border-bottom: 1px solid var(--border); }
-  .sidebar-section { padding: 16px 12px 4px; }
-  .sidebar-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; padding: 0 8px; margin-bottom: 4px; }
-  .nav-link { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; font-size: 14px; font-weight: 500; color: var(--muted); text-decoration: none; transition: all .15s; }
-  .nav-link:hover { background: #f9fafb; color: var(--text); }
-  .nav-link.active { background: var(--blue-lt); color: var(--blue); font-weight: 600; }
-  .sidebar-footer { margin-top: auto; padding: 16px 12px; border-top: 1px solid var(--border); }
-  .promo { background: var(--blue); color: #fff; border-radius: 10px; padding: 14px; margin-bottom: 12px; }
-  .promo-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
-  .promo-sub { font-size: 11px; opacity: .8; margin-bottom: 10px; }
-  .promo-btn { background: #fff; color: var(--blue); border: none; border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer; width: 100%; }
-  .sair-link { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; text-decoration: none; padding: 8px 12px; border-radius: 8px; transition: all .15s; }
-  .sair-link:hover { background: #f9fafb; color: var(--text); }
+  .sidebar{background:var(--surface);border-right:1px solid var(--line);padding:26px 20px 20px;display:flex;flex-direction:column;gap:24px;position:sticky;top:0;height:100vh;overflow-y:auto;}
+  .brand{padding:0 8px 4px;}
+  .brand-name{font-family:'Instrument Serif',serif;font-size:32px;font-style:italic;color:var(--purple);letter-spacing:-0.01em;line-height:1;}
+  .brand-tag{font-size:11px;color:var(--ink-3);font-weight:600;letter-spacing:0.1em;text-transform:uppercase;margin-top:2px;}
+  .nav-label{font-size:11px;letter-spacing:.14em;color:var(--ink-3);font-weight:600;padding:0 12px;text-transform:uppercase;margin-bottom:6px;}
+  .nav{display:flex;flex-direction:column;gap:2px;}
+  .nav a{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;color:var(--ink-2);text-decoration:none;font-size:14px;font-weight:500;transition:all .15s;cursor:pointer;}
+  .nav a:hover{background:var(--purple-soft);color:var(--ink);}
+  .nav a.active{background:var(--purple);color:#fff;}
+  .nav a svg{width:18px;height:18px;flex:0 0 18px;}
+  .promo{margin-top:auto;background:var(--purple-deep);color:#fff;border-radius:18px;padding:18px;position:relative;overflow:hidden;}
+  .promo::before{content:"";position:absolute;inset:0;background:radial-gradient(80% 60% at 100% 100%,oklch(0.50 0.18 300/.9),transparent 70%);opacity:.9;}
+  .promo>*{position:relative;}
+  .promo h4{margin:0 0 4px;font-size:15px;font-weight:700;}
+  .promo p{margin:0 0 14px;font-size:12.5px;color:oklch(0.88 0.015 300);line-height:1.45;}
+  .promo button{border:0;background:#fff;color:var(--purple-deep);padding:8px 16px;border-radius:999px;font-weight:700;font-size:12px;font-family:inherit;cursor:pointer;width:100%;}
 
   /* MAIN */
-  .main { margin-left: var(--sw); flex: 1; display: flex; flex-direction: column; }
+  .main{padding:22px 28px 32px;min-width:0;}
 
   /* TOPBAR */
-  .topbar { background: #fff; border-bottom: 1px solid var(--border); padding: 0 24px; height: 60px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 50; }
-  .topbar-chat { flex: 1; max-width: 340px; background: #f9fafb; border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; cursor: pointer; text-decoration: none; transition: border-color .2s; }
-  .topbar-chat:hover { border-color: var(--blue); }
-  .topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-  .topbar-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); padding: 6px 12px; border-radius: 8px; font-size: 13px; cursor: pointer; transition: all .15s; }
-  .topbar-btn:hover { background: #f9fafb; color: var(--text); }
-  .topbar-user { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 8px; }
-  .topbar-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--blue); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+  .topbar{display:grid;grid-template-columns:1fr auto;align-items:center;gap:24px;margin-bottom:28px;}
+  .search{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 14px;max-width:440px;width:100%;}
+  .search input{flex:1;border:0;outline:0;background:transparent;font-family:inherit;font-size:14px;color:var(--ink);}
+  .search input::placeholder{color:var(--ink-3);}
+  .topbar-right{display:flex;align-items:center;gap:12px;}
+  .icon-btn{width:40px;height:40px;background:var(--surface);border:1px solid var(--line);border-radius:12px;display:grid;place-items:center;cursor:pointer;transition:background .15s;}
+  .icon-btn:hover{background:var(--surface-2);}
+  .theme-toggle{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px;gap:2px;}
+  .theme-toggle button{width:32px;height:32px;border:0;background:transparent;border-radius:999px;cursor:pointer;display:grid;place-items:center;color:var(--ink-3);font-family:inherit;}
+  .theme-toggle button.on{background:var(--purple);color:#fff;}
+  .theme-toggle svg{width:15px;height:15px;}
+  .user{display:flex;align-items:center;gap:10px;padding-left:4px;}
+  .avatar{width:40px;height:40px;border-radius:999px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;background:var(--purple);}
+  .user-info .uname{font-size:13.5px;font-weight:700;line-height:1.2;}
+  .user-info .umail{font-size:11.5px;color:var(--ink-3);}
 
-  /* CONTENT */
-  .content { padding: 24px; }
-  .page-title { font-size: 28px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
-  .page-title em { font-style: italic; color: var(--purple); }
-  .page-subtitle { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+  /* PAGE HEAD */
+  .page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:22px;}
+  .page-title{font-family:'Instrument Serif',serif;font-size:44px;letter-spacing:-0.02em;margin:0 0 6px;font-weight:400;}
+  .page-title em{font-style:italic;color:var(--purple);}
+  .page-sub{color:var(--ink-2);font-size:14px;margin:0;}
+  .actions{display:flex;gap:10px;}
+  .btn{font-family:inherit;font-weight:600;font-size:13.5px;padding:11px 18px;border-radius:12px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;border:1px solid transparent;transition:all .1s;}
+  .btn:active{transform:translateY(1px);}
+  .btn-primary{background:var(--purple);color:#fff;}
+  .btn-primary:hover{filter:brightness(1.1);}
+  .btn-ghost{background:var(--surface);border-color:var(--line-2);color:var(--ink);}
+  .btn-ghost:hover{border-color:var(--ink-3);}
 
   /* FILTERS */
-  .filters-bar { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
-  .filter-label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; white-space: nowrap; }
-  select { background: #f9fafb; border: 1px solid var(--border); color: var(--text); padding: 7px 12px; border-radius: 8px; font-size: 13px; cursor: pointer; outline: none; transition: border-color .2s; }
-  select:hover, select:focus { border-color: var(--purple); }
-  .btn { padding: 7px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all .15s; }
-  .btn-primary { background: var(--purple); color: #fff; }
-  .btn-primary:hover { background: #6d28d9; }
-  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--muted); }
-  .btn-ghost:hover { background: #f9fafb; color: var(--text); }
-  .filter-sep { width: 1px; height: 24px; background: var(--border); }
+  .filters-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:14px 18px;margin-bottom:20px;box-shadow:var(--shadow-sm);}
+  .filter-label{font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;}
+  select{background:var(--surface-2);border:1px solid var(--line);color:var(--ink);padding:7px 12px;border-radius:10px;font-size:13px;font-family:inherit;cursor:pointer;outline:none;transition:border-color .15s;}
+  select:focus{border-color:var(--purple);}
+  .fsep{width:1px;height:22px;background:var(--line-2);}
 
   /* PAGE TABS */
-  .page-tabs { display: flex; gap: 4px; margin-bottom: 20px; background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 5px; width: fit-content; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
-  .page-tab { padding: 8px 22px; border-radius: 7px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; background: transparent; color: var(--muted); transition: all .15s; }
-  .page-tab.active { background: var(--purple); color: #fff; }
-  .page-tab:hover:not(.active) { color: var(--text); background: #f9fafb; }
+  .page-tabs{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px;gap:2px;margin-bottom:20px;box-shadow:var(--shadow-sm);}
+  .page-tab{padding:9px 22px;border-radius:999px;font-size:13.5px;font-weight:600;cursor:pointer;border:0;background:transparent;color:var(--ink-2);transition:all .15s;font-family:inherit;}
+  .page-tab.active{background:var(--purple);color:#fff;}
+  .page-tab:hover:not(.active){color:var(--ink);background:var(--surface-2);}
 
-  /* KPIs */
-  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
-  .kpi-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 16px; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
-  .kpi-top { display: flex; justify-content: space-between; align-items: flex-start; }
-  .kpi-label { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
-  .kpi-value { font-size: 26px; font-weight: 800; color: var(--text); line-height: 1; }
-  .kpi-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
-  .kpi-icon { width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  /* GRID */
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:18px;}
+  .c-3{grid-column:span 3;}.c-4{grid-column:span 4;}.c-5{grid-column:span 5;}
+  .c-6{grid-column:span 6;}.c-7{grid-column:span 7;}.c-8{grid-column:span 8;}.c-12{grid-column:span 12;}
+  .card{background:var(--surface);border-radius:var(--radius);border:1px solid var(--line);padding:22px;}
 
-  /* CARD */
-  .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
-  .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-  .card-title { font-size: 15px; font-weight: 700; color: var(--text); }
+  /* STAT */
+  .stat{position:relative;overflow:hidden;padding:20px;}
+  .stat .slbl{font-size:12.5px;font-weight:600;color:var(--ink-2);display:flex;align-items:center;justify-content:space-between;}
+  .stat .sarrow{width:28px;height:28px;border-radius:999px;background:var(--surface-2);display:grid;place-items:center;color:var(--ink);}
+  .stat .snum{font-family:'Instrument Serif',serif;font-size:44px;line-height:1;letter-spacing:-0.02em;margin:14px 0 12px;font-weight:400;}
+  .stat .smeta{font-size:12.5px;color:var(--ink-3);display:flex;align-items:center;gap:8px;}
+  .stat.feature{background:var(--purple-deep);color:#fff;border-color:transparent;}
+  .stat.feature .slbl{color:oklch(0.88 0.02 300);}
+  .stat.feature .sarrow{background:oklch(0.38 0.12 300);color:#fff;}
+  .stat.feature .smeta{color:oklch(0.82 0.04 300);}
+
+  /* CARD HEAD */
+  .card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+  .card-head h3{margin:0;font-size:16px;font-weight:700;}
+  .tabs{display:flex;background:var(--surface-2);border-radius:999px;padding:4px;font-size:12px;font-weight:600;}
+  .tabs button{border:0;background:transparent;padding:6px 14px;border-radius:999px;cursor:pointer;color:var(--ink-2);font-family:inherit;font-weight:600;transition:all .15s;}
+  .tabs button.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-sm);}
 
   /* TABLE */
-  .table-wrap { overflow-x: auto; max-height: 520px; overflow-y: auto; }
-  .table-wrap::-webkit-scrollbar { width: 6px; height: 6px; }
-  .table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  thead th { position: sticky; top: 0; background: #fff; z-index: 2; }
-  th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--border); }
-  td { padding: 10px 14px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
-  tr:hover td { background: #f9fafb; cursor: pointer; }
-  tr:last-child td { border-bottom: none; }
-  .rank { font-weight: 700; color: var(--muted); font-size: 12px; }
-  .rank-top { color: var(--yellow); }
-  .medico-name { font-weight: 600; color: var(--text); }
-  .medico-loc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .tbl-wrap{overflow-x:auto;max-height:520px;overflow-y:auto;}
+  .tbl-wrap::-webkit-scrollbar{width:6px;height:6px;}
+  .tbl-wrap::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:999px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  thead th{position:sticky;top:0;background:var(--surface);z-index:2;}
+  th{text-align:left;padding:10px 14px;font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--line);}
+  td{padding:10px 14px;border-bottom:1px dashed var(--line);vertical-align:middle;}
+  tr:hover td{background:var(--surface-2);cursor:pointer;}
+  tr:last-child td{border-bottom:none;}
+  .rank{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--ink-3);font-size:12px;}
+  .rank-top{color:var(--amber);}
+  .medico-name{font-weight:600;color:var(--ink);}
+  .medico-loc{font-size:11px;color:var(--ink-3);margin-top:2px;}
+  .badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;}
+  .badge-blue{background:var(--badge-bg);color:var(--blue-ink);}
+  .badge-purple{background:oklch(0.90 0.05 300);color:oklch(0.30 0.12 300);}
+  .badge-amber{background:var(--amber-soft);color:oklch(0.40 0.12 75);}
+  .badge-green{background:oklch(0.94 0.04 150);color:oklch(0.30 0.08 150);}
+  [data-theme="dark"] .badge-purple{background:oklch(0.32 0.08 300);color:oklch(0.88 0.06 300);}
+  [data-theme="dark"] .badge-amber{background:oklch(0.28 0.06 80);color:oklch(0.85 0.10 75);}
 
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
-  .badge-blue   { background: #eff6ff;  color: #1d4ed8; }
-  .badge-green  { background: #f0fdf4;  color: #15803d; }
-  .badge-yellow { background: #fffbeb;  color: #b45309; }
-  .badge-purple { background: #faf5ff;  color: #7c3aed; }
-  .badge-red    { background: #fff1f2;  color: #dc2626; }
-
-  /* OPORTUNIDADES */
-  .oport-info { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; font-size: 13px; color: #92400e; display: flex; align-items: center; gap: 10px; }
+  /* OPORT INFO */
+  .oport-info{background:var(--amber-soft);border:1px solid oklch(0.88 0.10 75);border-radius:var(--radius-sm);padding:14px 18px;margin-bottom:20px;font-size:13px;color:oklch(0.38 0.10 75);display:flex;align-items:center;gap:10px;}
 
   /* MODAL */
-  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 24px; }
-  .modal-overlay.hidden { display: none; }
-  .modal { background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 28px; max-width: 760px; width: 100%; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.15); }
-  .modal-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
-  .modal-title { font-size: 18px; font-weight: 700; color: var(--text); }
-  .modal-sub { font-size: 13px; color: var(--muted); margin-top: 4px; }
-  .modal-close { background: transparent; border: 1px solid var(--border); color: var(--muted); width: 32px; height: 32px; border-radius: 8px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all .15s; }
-  .modal-close:hover { color: var(--text); border-color: var(--blue); background: #f9fafb; }
-  .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
-  .modal-stat { background: #f9fafb; border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
-  .modal-stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 600; margin-bottom: 6px; }
-  .modal-stat-value { font-size: 22px; font-weight: 800; color: var(--text); }
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(4px);}
+  .modal-overlay.hidden{display:none;}
+  .modal{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:28px;max-width:780px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,.18);}
+  .modal-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;}
+  .modal-name{font-family:'Instrument Serif',serif;font-size:26px;font-style:italic;color:var(--ink);margin:0 0 4px;}
+  .modal-sub{font-size:13px;color:var(--ink-3);}
+  .modal-close{background:var(--surface-2);border:1px solid var(--line);color:var(--ink-2);width:34px;height:34px;border-radius:10px;cursor:pointer;font-size:16px;display:grid;place-items:center;transition:all .15s;flex-shrink:0;}
+  .modal-close:hover{border-color:var(--purple);color:var(--purple);}
+  .modal-kpis{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
+  .modal-stat{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:16px;}
+  .modal-stat-label{font-size:11px;color:var(--ink-3);text-transform:uppercase;font-weight:700;letter-spacing:.06em;margin-bottom:8px;}
+  .modal-stat-value{font-family:'Instrument Serif',serif;font-size:32px;letter-spacing:-0.02em;line-height:1;}
+  .modal-section-label{font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;}
 
-  /* LOADING */
-  .loading { display: flex; align-items: center; justify-content: center; gap: 10px; height: 200px; color: var(--muted); font-size: 14px; }
-  .spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--purple); border-radius: 50%; animation: spin .7s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .empty { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 14px; }
-
-  @media (max-width: 900px) {
-    .kpis { grid-template-columns: repeat(2, 1fr); }
-    .sidebar { display: none; } .main { margin-left: 0; }
-  }
+  .loading{display:flex;align-items:center;justify-content:center;gap:10px;height:160px;color:var(--ink-3);font-size:14px;}
+  .spinner{width:20px;height:20px;border:2px solid var(--line-2);border-top-color:var(--purple);border-radius:50%;animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .empty{text-align:center;padding:60px 20px;color:var(--ink-3);font-size:14px;}
+  ::-webkit-scrollbar{width:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:999px;}
+  [data-theme="dark"] .btn-primary{color:oklch(0.96 0.006 95);}
+  [data-theme="dark"] .nav a.active{color:#fff;}
+  [data-theme="dark"] .modal{background:var(--surface);}
 </style>
 </head>
 <body>
+<div class="app">
 
+<!-- SIDEBAR -->
 <aside class="sidebar">
-  <div class="sidebar-logo">IQVIA</div>
-  <div class="sidebar-section">
-    <div class="sidebar-label">Análises</div>
-    <a href="/market" class="nav-link">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-      Market Intelligence
-    </a>
-    <a href="/prescritores" class="nav-link active">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      Prescritores
-    </a>
-    <a href="/chat" class="nav-link">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      Chat IA
-    </a>
+  <div class="brand">
+    <div class="brand-name">IQVIA</div>
+    <div class="brand-tag">Pharma Analytics</div>
   </div>
-  <div class="sidebar-section">
-    <div class="sidebar-label">Admin</div>
-    <a href="/admin/load" class="nav-link">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-      Carga de Dados
-    </a>
+  <div>
+    <div class="nav-label">Análises</div>
+    <nav class="nav" style="margin-top:8px">
+      <a href="/market">
+        <svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="20" x2="18" y2="10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="12" y1="20" x2="12" y2="4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="6" y1="20" x2="6" y2="14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Market Intelligence
+      </a>
+      <a class="active" href="/prescritores">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Prescritores
+      </a>
+      <a href="/chat">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Chat IA
+      </a>
+    </nav>
   </div>
-  <div class="sidebar-footer">
-    <div class="promo">
-      <div class="promo-title">Analise com Inteligência</div>
-      <div class="promo-sub">Faça perguntas em linguagem natural com IA.</div>
-      <button class="promo-btn" onclick="location.href='/chat'">Perguntar à IA</button>
-    </div>
-    <a href="/logout" class="sair-link">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-      Sair
-    </a>
+  <div>
+    <div class="nav-label">Admin</div>
+    <nav class="nav" style="margin-top:8px">
+      <a href="/admin/load">
+        <svg viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="5" rx="9" ry="3" stroke="currentColor" stroke-width="1.8"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Carga de Dados
+      </a>
+      <a href="/logout">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Sair
+      </a>
+    </nav>
+  </div>
+  <div class="promo">
+    <h4>Analise com<br/>Inteligência IA</h4>
+    <p>Faça perguntas em linguagem natural sobre prescritores e oportunidades.</p>
+    <button onclick="location.href='/chat'">Perguntar à IA</button>
   </div>
 </aside>
 
-<div class="main">
-  <header class="topbar">
-    <a href="/chat" class="topbar-chat">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      <span>Pergunte algo sobre os dados...</span></a>
-    <div class="topbar-actions">
-      <button class="topbar-btn" onclick="clearFilters()">✕ Limpar filtros</button>
-      <div class="topbar-user">
-        <div class="topbar-avatar" id="userAvatar">U</div>
-        <span style="font-size:13px;font-weight:600" id="userName">Usuário</span>
+<!-- MAIN -->
+<main class="main">
+  <div class="topbar">
+    <div class="search">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="var(--search-ink)" stroke-width="1.8"/><path d="M20 20l-3.5-3.5" stroke="var(--search-ink)" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <input placeholder="Buscar médico, CRM ou localização..." readonly onclick="location.href='/chat'">
+    </div>
+    <div class="topbar-right">
+      <div class="theme-toggle" role="group">
+        <button id="theme-light" class="on" aria-label="Tema claro">
+          <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <button id="theme-dark" aria-label="Tema escuro">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      <button class="icon-btn" onclick="clearFilters()" title="Limpar filtros" aria-label="Limpar filtros">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="var(--icon-ink)" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+      <div class="user">
+        <div class="avatar" id="userAvatar">U</div>
+        <div class="user-info">
+          <div class="uname" id="userName">Usuário</div>
+          <div class="umail">IQVIA Analytics</div>
+        </div>
       </div>
     </div>
-  </header>
+  </div>
 
-  <div class="content">
-    <div class="page-title">Análise de <em>Prescritores</em></div>
-    <div class="page-subtitle">Ranking e oportunidades por médico · Prescrições por laboratório, molécula e localização</div>
-
-    <div class="filters-bar">
-      <span class="filter-label">Filtros</span>
-      <select id="fMolecula" onchange="onMoleculaChange()"><option value="">Todas as moléculas</option></select>
-      <select id="fLaboratorio"><option value="">Todos os laboratórios</option></select>
-      <select id="fEstado" onchange="onEstadoChange()"><option value="">Todos os estados</option></select>
-      <select id="fCidade"><option value="">Todas as cidades</option></select>
-      <div class="filter-sep"></div>
-      <span class="filter-label">Período</span>
-      <select id="fPeriodoIni"><option value="">De</option></select>
-      <select id="fPeriodoFim"><option value="">Até</option></select>
-      <div class="filter-sep"></div>
-      <button class="btn btn-primary" onclick="applyFilters()">Aplicar</button>
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">Análise de <em>Prescritores</em></h1>
+      <p class="page-sub">Ranking e oportunidades por médico · Prescrições por laboratório, molécula e localização</p>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="applyFilters()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Aplicar filtros
+      </button>
       <button class="btn btn-ghost" onclick="clearFilters()">Limpar</button>
     </div>
+  </div>
 
-    <div class="page-tabs">
-      <button class="page-tab active" onclick="switchTab('ranking', this)">Ranking de Prescritores</button>
-      <button class="page-tab" onclick="switchTab('oportunidades', this)">Oportunidades</button>
+  <div class="filters-row">
+    <span class="filter-label">Filtros</span>
+    <select id="fMolecula" onchange="onMoleculaChange()"><option value="">Todas as moléculas</option></select>
+    <select id="fLaboratorio"><option value="">Todos os laboratórios</option></select>
+    <select id="fEstado" onchange="onEstadoChange()"><option value="">Todos os estados</option></select>
+    <select id="fCidade"><option value="">Todas as cidades</option></select>
+    <div class="fsep"></div>
+    <span class="filter-label">Período</span>
+    <select id="fPeriodoIni"><option value="">De</option></select>
+    <select id="fPeriodoFim"><option value="">Até</option></select>
+  </div>
+
+  <div class="page-tabs">
+    <button class="page-tab active" onclick="switchTab('ranking', this)">Ranking de Prescritores</button>
+    <button class="page-tab" onclick="switchTab('oportunidades', this)">Oportunidades</button>
+  </div>
+
+  <div class="grid">
+
+    <!-- STATS -->
+    <div class="card stat feature c-3">
+      <div class="slbl">Médicos Ativos
+        <span class="sarrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/></svg></span>
+      </div>
+      <div class="snum" id="kpiMedicos">—</div>
+      <div class="smeta">prescritores no período</div>
     </div>
 
-    <div class="kpis">
-      <div class="kpi-card">
-        <div class="kpi-top">
-          <div><div class="kpi-label">Médicos Ativos</div><div class="kpi-value" id="kpiMedicos">—</div><div class="kpi-sub">prescritores</div></div>
-          <div class="kpi-icon" style="background:#faf5ff;color:#7c3aed">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          </div>
-        </div>
+    <div class="card stat c-3">
+      <div class="slbl">Total Receitas
+        <span class="sarrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M9 7h8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-top">
-          <div><div class="kpi-label">Total Receitas</div><div class="kpi-value" id="kpiReceitas">—</div><div class="kpi-sub">prescrições</div></div>
-          <div class="kpi-icon" style="background:#eff6ff;color:#1d4ed8">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-          </div>
-        </div>
+      <div class="snum" id="kpiReceitas" style="color:var(--purple)">—</div>
+      <div class="smeta">prescrições totais</div>
+    </div>
+
+    <div class="card stat c-3">
+      <div class="slbl">Média / Médico
+        <span class="sarrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-top">
-          <div><div class="kpi-label">Média / Médico</div><div class="kpi-value" id="kpiMedia">—</div><div class="kpi-sub">receitas por médico</div></div>
-          <div class="kpi-icon" style="background:#f0fdf4;color:#15803d">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
-          </div>
-        </div>
+      <div class="snum" id="kpiMedia">—</div>
+      <div class="smeta">receitas por médico</div>
+    </div>
+
+    <div class="card stat c-3">
+      <div class="slbl">Oportunidades
+        <span class="sarrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="6" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2" stroke="currentColor" stroke-width="2"/></svg></span>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-top">
-          <div><div class="kpi-label">Oportunidades</div><div class="kpi-value" id="kpiOport">—</div><div class="kpi-sub">médicos a conquistar</div></div>
-          <div class="kpi-icon" style="background:#fffbeb;color:#b45309">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
-          </div>
-        </div>
+      <div class="snum" id="kpiOport">—</div>
+      <div class="smeta">médicos a conquistar</div>
+    </div>
+
+    <!-- RANKING TAB -->
+    <div class="card c-12" id="tabRanking">
+      <div class="card-head">
+        <h3>Top Prescritores</h3>
+        <span id="rankCount" style="font-size:12px;color:var(--ink-3);font-family:'JetBrains Mono',monospace"></span>
+      </div>
+      <div class="tbl-wrap" id="rankingTable">
+        <div class="loading"><div class="spinner"></div> Carregando...</div>
       </div>
     </div>
 
-    <div id="tabRanking">
-      <div class="card">
-        <div class="card-header">
-          <span class="card-title">Top Prescritores</span>
-          <span id="rankCount" style="font-size:12px;color:var(--muted)"></span>
-        </div>
-        <div class="table-wrap" id="rankingTable">
-          <div class="loading"><div class="spinner"></div> Carregando...</div>
-        </div>
-      </div>
-    </div>
-
-    <div id="tabOportunidades" style="display:none">
+    <!-- OPORTUNIDADES TAB -->
+    <div class="c-12" id="tabOportunidades" style="display:none">
       <div class="oport-info" id="oportunidadesInfo">
-        ⚠ Selecione uma <strong>Molécula</strong> e um <strong>Laboratório</strong> nos filtros para ver médicos que prescrevem a molécula mas ainda não prescrevem sua marca.
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        Selecione uma <strong style="margin:0 3px">Molécula</strong> e um <strong style="margin:0 3px">Laboratório</strong> nos filtros para ver médicos que prescrevem a molécula mas ainda não prescrevem sua marca.
       </div>
       <div class="card">
-        <div class="card-header">
-          <span class="card-title" id="oportunidadesTitulo">Médicos a Conquistar</span>
-          <span id="oportunidadesCount" style="font-size:12px;color:var(--muted)"></span>
+        <div class="card-head">
+          <h3 id="oportunidadesTitulo">Médicos a Conquistar</h3>
+          <span id="oportunidadesCount" style="font-size:12px;color:var(--ink-3);font-family:'JetBrains Mono',monospace"></span>
         </div>
-        <div class="table-wrap" id="oportunidadesTable">
+        <div class="tbl-wrap" id="oportunidadesTable">
           <div class="empty">Aplique os filtros para ver as oportunidades.</div>
         </div>
       </div>
     </div>
+
   </div>
+</main>
 </div>
 
 <!-- MODAL PERFIL -->
@@ -282,200 +352,221 @@
   <div class="modal">
     <div class="modal-header">
       <div>
-        <div class="modal-title" id="modalName">—</div>
+        <div class="modal-name" id="modalName">—</div>
         <div class="modal-sub" id="modalLoc">—</div>
       </div>
-      <button class="modal-close" onclick="closeModal()">✕</button>
+      <button class="modal-close" onclick="closeModal()" aria-label="Fechar">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
     </div>
-    <div class="modal-grid">
-      <div class="modal-stat"><div class="modal-stat-label">Total Receitas</div><div class="modal-stat-value" id="modalReceitas">—</div></div>
-      <div class="modal-stat"><div class="modal-stat-label">Total Medicamentos</div><div class="modal-stat-value" id="modalMeds">—</div></div>
+    <div class="modal-kpis">
+      <div class="modal-stat">
+        <div class="modal-stat-label">Total Receitas</div>
+        <div class="modal-stat-value" id="modalReceitas">—</div>
+      </div>
+      <div class="modal-stat">
+        <div class="modal-stat-label">Total Medicamentos</div>
+        <div class="modal-stat-value" id="modalMeds">—</div>
+      </div>
     </div>
-    <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Prescrições por Laboratório / Marca</div>
-    <div class="table-wrap" id="modalTable"><div class="loading"><div class="spinner"></div></div></div>
-    <div style="margin-top:20px;"><canvas id="modalChart" height="180"></canvas></div>
+    <div class="modal-section-label">Prescrições por Laboratório / Marca</div>
+    <div style="position:relative;height:180px;margin-bottom:20px"><canvas id="modalChart"></canvas></div>
+    <div class="tbl-wrap" id="modalTable"><div class="loading"><div class="spinner"></div></div></div>
   </div>
 </div>
 
 <script>
-let currentTab = 'ranking', modalChart = null;
+let currentTab='ranking', modalChart=null;
 
-function fmt(n) {
-  if (n == null) return '—';
-  if (n >= 1e6) return (n/1e6).toFixed(1) + 'M';
-  if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
+function fmt(n){
+  if(n==null)return'—';
+  if(n>=1e6)return(n/1e6).toFixed(1)+'M';
+  if(n>=1e3)return(n/1e3).toFixed(1)+'K';
   return n.toLocaleString('pt-BR');
 }
+function fmtM(n){return`<span style="font-family:'JetBrains Mono',monospace">${fmt(n)}</span>`;}
 
-async function get(url) { return (await fetch(url)).json(); }
+async function get(url){return(await fetch(url)).json();}
+function isDark(){return document.documentElement.getAttribute('data-theme')==='dark';}
+function tickClr(){return isDark()?'rgba(255,255,255,.4)':'#9ca3af';}
+function gridClr(){return isDark()?'rgba(255,255,255,.06)':'rgba(0,0,0,.06)';}
 
-function params() {
-  const p = new URLSearchParams();
-  const v = id => document.getElementById(id).value;
-  if (v('fMolecula'))    p.set('molecula',    v('fMolecula'));
-  if (v('fLaboratorio')) p.set('laboratorio', v('fLaboratorio'));
-  if (v('fEstado'))      p.set('estado',      v('fEstado'));
-  if (v('fCidade'))      p.set('cidade',      v('fCidade'));
-  if (v('fPeriodoIni'))  p.set('periodo_ini', v('fPeriodoIni'));
-  if (v('fPeriodoFim'))  p.set('periodo_fim', v('fPeriodoFim'));
+function params(){
+  const p=new URLSearchParams(),v=id=>document.getElementById(id).value;
+  if(v('fMolecula'))    p.set('molecula',   v('fMolecula'));
+  if(v('fLaboratorio')) p.set('laboratorio',v('fLaboratorio'));
+  if(v('fEstado'))      p.set('estado',     v('fEstado'));
+  if(v('fCidade'))      p.set('cidade',     v('fCidade'));
+  if(v('fPeriodoIni'))  p.set('periodo_ini',v('fPeriodoIni'));
+  if(v('fPeriodoFim'))  p.set('periodo_fim',v('fPeriodoFim'));
   return p;
 }
 
-function populateSelect(id, items, placeholder) {
-  const sel = document.getElementById(id);
-  const cur = sel.value;
-  sel.innerHTML = `<option value="">${placeholder}</option>` +
-    items.map(v => `<option value="${v}"${v===cur?' selected':''}>${v}</option>`).join('');
+function populateSelect(id,items,ph){
+  const s=document.getElementById(id),cur=s.value;
+  s.innerHTML=`<option value="">${ph}</option>`+items.map(v=>`<option value="${v}"${v===cur?' selected':''}>${v}</option>`).join('');
 }
 
-async function loadFilters() {
-  const [mols, labs, estados, periodos] = await Promise.all([
-    get('/api/filters/moleculas'), get('/api/filters/laboratorios'),
-    get('/api/filters/estados'),   get('/api/filters/periodos'),
+async function loadFilters(){
+  const[mols,labs,estados,periodos]=await Promise.all([
+    get('/api/filters/moleculas'),get('/api/filters/laboratorios'),
+    get('/api/filters/estados'),  get('/api/filters/periodos'),
   ]);
-  populateSelect('fMolecula',    mols,    'Todas as moléculas');
-  populateSelect('fLaboratorio', labs,    'Todos os laboratórios');
-  populateSelect('fEstado',      estados, 'Todos os estados');
-  populateSelect('fPeriodoIni',  periodos,'De');
-  populateSelect('fPeriodoFim',  periodos,'Até');
+  populateSelect('fMolecula',   mols,   'Todas as moléculas');
+  populateSelect('fLaboratorio',labs,   'Todos os laboratórios');
+  populateSelect('fEstado',     estados,'Todos os estados');
+  populateSelect('fPeriodoIni', periodos,'De');
+  populateSelect('fPeriodoFim', periodos,'Até');
 }
 
-async function onMoleculaChange() {
-  const mol = document.getElementById('fMolecula').value;
-  const labs = await get('/api/filters/laboratorios' + (mol ? '?molecula='+encodeURIComponent(mol) : ''));
-  populateSelect('fLaboratorio', labs, 'Todos os laboratórios');
+async function onMoleculaChange(){
+  const mol=document.getElementById('fMolecula').value;
+  populateSelect('fLaboratorio',await get('/api/filters/laboratorios'+(mol?'?molecula='+encodeURIComponent(mol):'')), 'Todos os laboratórios');
 }
 
-async function onEstadoChange() {
-  const estado = document.getElementById('fEstado').value;
-  const cidades = await get('/api/filters/cidades' + (estado ? '?estado='+encodeURIComponent(estado) : ''));
-  populateSelect('fCidade', cidades, 'Todas as cidades');
+async function onEstadoChange(){
+  const estado=document.getElementById('fEstado').value;
+  populateSelect('fCidade',await get('/api/filters/cidades'+(estado?'?estado='+encodeURIComponent(estado):'')), 'Todas as cidades');
 }
 
-function clearFilters() {
-  ['fMolecula','fLaboratorio','fEstado','fCidade','fPeriodoIni','fPeriodoFim'].forEach(id => document.getElementById(id).value = '');
+function clearFilters(){
+  ['fMolecula','fLaboratorio','fEstado','fCidade','fPeriodoIni','fPeriodoFim'].forEach(id=>document.getElementById(id).value='');
   loadAll();
 }
+function applyFilters(){loadAll();}
 
-function applyFilters() { loadAll(); }
-
-function switchTab(tab, el) {
-  currentTab = tab;
-  document.querySelectorAll('.page-tab').forEach(b => b.classList.toggle('active', b===el));
-  document.getElementById('tabRanking').style.display       = tab === 'ranking'       ? '' : 'none';
-  document.getElementById('tabOportunidades').style.display = tab === 'oportunidades' ? '' : 'none';
-  if (tab === 'oportunidades') loadOportunidades();
+function switchTab(tab,el){
+  currentTab=tab;
+  document.querySelectorAll('.page-tab').forEach(b=>b.classList.toggle('active',b===el));
+  document.getElementById('tabRanking').style.display      =tab==='ranking'      ?'':'none';
+  document.getElementById('tabOportunidades').style.display=tab==='oportunidades'?'':'none';
+  if(tab==='oportunidades')loadOportunidades();
 }
 
-async function loadRanking() {
-  document.getElementById('rankingTable').innerHTML = '<div class="loading"><div class="spinner"></div> Carregando...</div>';
-  const p = new URLSearchParams(params()); p.set('limit', '200');
-  const data = await get('/api/prescritores/ranking?' + p);
-  const total = data.reduce((s,r) => s + r.total_receitas, 0);
-  const media = data.length ? Math.round(total / data.length) : 0;
-  document.getElementById('kpiMedicos').textContent  = fmt(data.length);
-  document.getElementById('kpiReceitas').textContent = fmt(total);
-  document.getElementById('kpiMedia').textContent    = fmt(media);
-  document.getElementById('rankCount').textContent   = `${data.length} médicos`;
-  if (!data.length) { document.getElementById('rankingTable').innerHTML = '<div class="empty">Nenhum resultado encontrado.</div>'; return; }
-  document.getElementById('rankingTable').innerHTML = `
+async function loadRanking(){
+  document.getElementById('rankingTable').innerHTML='<div class="loading"><div class="spinner"></div> Carregando...</div>';
+  const p=new URLSearchParams(params());p.set('limit','200');
+  const data=await get('/api/prescritores/ranking?'+p);
+  const total=data.reduce((s,r)=>s+r.total_receitas,0);
+  const media=data.length?Math.round(total/data.length):0;
+  document.getElementById('kpiMedicos').textContent =fmt(data.length);
+  document.getElementById('kpiReceitas').textContent=fmt(total);
+  document.getElementById('kpiMedia').textContent   =fmt(media);
+  document.getElementById('rankCount').textContent  =data.length+' médicos';
+  if(!data.length){document.getElementById('rankingTable').innerHTML='<div class="empty">Nenhum resultado encontrado.</div>';return;}
+  document.getElementById('rankingTable').innerHTML=`
     <table>
       <thead><tr><th>#</th><th>Médico</th><th>Localização</th><th>Receitas</th><th>Medicamentos</th><th>Labs</th><th>Marcas</th></tr></thead>
-      <tbody>${data.map((r,i) => `<tr onclick="openModal('${r.crm}')">
+      <tbody>${data.map((r,i)=>`<tr onclick="openModal('${r.crm}')">
         <td><span class="rank ${i<3?'rank-top':''}">${i+1}</span></td>
         <td><div class="medico-name">${r.medico||'—'}</div><div class="medico-loc">${r.crm}</div></td>
-        <td><div>${r.cidade||'—'}</div><div style="font-size:11px;color:var(--muted)">${r.estado||''}</div></td>
-        <td><strong>${fmt(r.total_receitas)}</strong></td>
-        <td>${fmt(r.total_medicamentos)}</td>
+        <td><div>${r.cidade||'—'}</div><div class="medico-loc">${r.estado||''}</div></td>
+        <td>${fmtM(r.total_receitas)}</td>
+        <td>${fmtM(r.total_medicamentos)}</td>
         <td><span class="badge badge-blue">${r.qtde_labs}</span></td>
         <td><span class="badge badge-purple">${r.qtde_marcas}</span></td>
       </tr>`).join('')}</tbody>
     </table>`;
 }
 
-async function loadOportunidades() {
-  const mol = document.getElementById('fMolecula').value;
-  const lab = document.getElementById('fLaboratorio').value;
-  if (!mol || !lab) {
-    document.getElementById('oportunidadesInfo').style.display = '';
-    document.getElementById('oportunidadesTable').innerHTML = '<div class="empty">Selecione molécula e laboratório nos filtros.</div>';
-    document.getElementById('kpiOport').textContent = '—';
+async function loadOportunidades(){
+  const mol=document.getElementById('fMolecula').value;
+  const lab=document.getElementById('fLaboratorio').value;
+  if(!mol||!lab){
+    document.getElementById('oportunidadesInfo').style.display='';
+    document.getElementById('oportunidadesTable').innerHTML='<div class="empty">Selecione molécula e laboratório nos filtros.</div>';
+    document.getElementById('kpiOport').textContent='—';
     return;
   }
-  document.getElementById('oportunidadesInfo').style.display = 'none';
-  document.getElementById('oportunidadesTitulo').textContent = `Médicos que prescrevem ${mol.trim()} sem usar ${lab}`;
-  document.getElementById('oportunidadesTable').innerHTML = '<div class="loading"><div class="spinner"></div> Carregando...</div>';
-  const data = await get('/api/prescritores/oportunidades?' + params());
-  document.getElementById('kpiOport').textContent = fmt(data.length);
-  document.getElementById('oportunidadesCount').textContent = `${data.length} oportunidades`;
-  if (!data.length) { document.getElementById('oportunidadesTable').innerHTML = '<div class="empty">Nenhuma oportunidade encontrada.</div>'; return; }
-  document.getElementById('oportunidadesTable').innerHTML = `
+  document.getElementById('oportunidadesInfo').style.display='none';
+  document.getElementById('oportunidadesTitulo').textContent=`Médicos que prescrevem ${mol.trim()} sem usar ${lab}`;
+  document.getElementById('oportunidadesTable').innerHTML='<div class="loading"><div class="spinner"></div> Carregando...</div>';
+  const data=await get('/api/prescritores/oportunidades?'+params());
+  document.getElementById('kpiOport').textContent=fmt(data.length);
+  document.getElementById('oportunidadesCount').textContent=data.length+' oportunidades';
+  if(!data.length){document.getElementById('oportunidadesTable').innerHTML='<div class="empty">Nenhuma oportunidade encontrada.</div>';return;}
+  document.getElementById('oportunidadesTable').innerHTML=`
     <table>
       <thead><tr><th>#</th><th>Médico</th><th>Localização</th><th>Brick</th><th>Receitas</th><th>Medicamentos</th><th>Labs Concorrentes</th></tr></thead>
-      <tbody>${data.map((r,i) => `<tr onclick="openModal('${r.crm}')">
+      <tbody>${data.map((r,i)=>`<tr onclick="openModal('${r.crm}')">
         <td><span class="rank ${i<3?'rank-top':''}">${i+1}</span></td>
         <td><div class="medico-name">${r.medico||'—'}</div><div class="medico-loc">${r.crm}</div></td>
-        <td><div>${r.cidade||'—'}</div><div style="font-size:11px;color:var(--muted)">${r.estado||''}</div></td>
-        <td>${r.brick||'—'}</td>
-        <td><strong>${fmt(r.total_receitas)}</strong></td>
-        <td>${fmt(r.total_medicamentos)}</td>
-        <td><span class="badge badge-yellow">${r.qtde_labs}</span></td>
+        <td><div>${r.cidade||'—'}</div><div class="medico-loc">${r.estado||''}</div></td>
+        <td><span style="font-size:12px">${r.brick||'—'}</span></td>
+        <td>${fmtM(r.total_receitas)}</td>
+        <td>${fmtM(r.total_medicamentos)}</td>
+        <td><span class="badge badge-amber">${r.qtde_labs}</span></td>
       </tr>`).join('')}</tbody>
     </table>`;
 }
 
-async function openModal(crm) {
+const COLORS_HEX=['#6d28d9','#7c3aed','#1a56db','#059669','#0891b2','#4f46e5','#d97706','#dc2626','#0369a1','#db2777'];
+
+async function openModal(crm){
   document.getElementById('modalOverlay').classList.remove('hidden');
-  document.getElementById('modalName').textContent = 'Carregando...';
-  document.getElementById('modalLoc').textContent  = '';
-  document.getElementById('modalTable').innerHTML  = '<div class="loading"><div class="spinner"></div></div>';
-  const d = await get(`/api/prescritores/perfil/${crm}`);
-  const info = d.info || {}, presc = d.prescricoes || [];
-  document.getElementById('modalName').textContent     = info.medico || crm;
-  document.getElementById('modalLoc').textContent      = [info.cidade, info.estado, info.brick].filter(Boolean).join(' · ');
-  document.getElementById('modalReceitas').textContent = fmt(info.total_receitas);
-  document.getElementById('modalMeds').textContent     = fmt(info.total_medicamentos);
-  const labMap = {};
-  presc.forEach(p => { labMap[p.laboratorio] = (labMap[p.laboratorio]||0) + p.receitas; });
-  const labs = Object.entries(labMap).sort((a,b) => b[1]-a[1]).slice(0,10);
-  const colors = ['#1a56db','#7c3aed','#059669','#d97706','#dc2626','#0891b2','#db2777','#65a30d','#ea580c','#4f46e5'];
-  if (modalChart) modalChart.destroy();
-  modalChart = new Chart(document.getElementById('modalChart'), {
-    type: 'bar',
-    data: { labels: labs.map(l => l[0]), datasets: [{ label: 'Receitas', data: labs.map(l => l[1]), backgroundColor: colors, borderRadius: 5 }] },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { grid: { display: false }, ticks: { color: '#9ca3af', font: {size:11} } },
-        y: { grid: { color: '#f3f4f6' }, ticks: { color: '#9ca3af', font: {size:11}, callback: v => fmt(v) } }
+  document.getElementById('modalName').textContent='Carregando...';
+  document.getElementById('modalLoc').textContent='';
+  document.getElementById('modalTable').innerHTML='<div class="loading"><div class="spinner"></div></div>';
+  const d=await get(`/api/prescritores/perfil/${crm}`);
+  const info=d.info||{},presc=d.prescricoes||[];
+  document.getElementById('modalName').textContent    =info.medico||crm;
+  document.getElementById('modalLoc').textContent     =[info.cidade,info.estado,info.brick].filter(Boolean).join(' · ');
+  document.getElementById('modalReceitas').textContent=fmt(info.total_receitas);
+  document.getElementById('modalMeds').textContent    =fmt(info.total_medicamentos);
+  const labMap={};
+  presc.forEach(p=>{labMap[p.laboratorio]=(labMap[p.laboratorio]||0)+p.receitas;});
+  const labs=Object.entries(labMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  if(modalChart)modalChart.destroy();
+  modalChart=new Chart(document.getElementById('modalChart'),{
+    type:'bar',
+    data:{labels:labs.map(l=>l[0]),datasets:[{label:'Receitas',data:labs.map(l=>l[1]),backgroundColor:COLORS_HEX,borderRadius:6}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{grid:{display:false},ticks:{color:tickClr(),font:{size:11}}},
+        y:{grid:{color:gridClr()},ticks:{color:tickClr(),font:{size:11},callback:v=>fmt(v)}}
       }
     }
   });
-  document.getElementById('modalTable').innerHTML = `
+  document.getElementById('modalTable').innerHTML=`
     <table>
       <thead><tr><th>Laboratório</th><th>Marca</th><th>Molécula</th><th>Período</th><th>Receitas</th></tr></thead>
-      <tbody>${presc.slice(0,30).map(p => `<tr>
+      <tbody>${presc.slice(0,30).map(p=>`<tr>
         <td>${p.laboratorio||'—'}</td><td>${p.marca||'—'}</td>
-        <td>${p.molecula?.trim()||'—'}</td><td>${p.periodo}</td>
-        <td><strong>${fmt(p.receitas)}</strong></td>
+        <td>${p.molecula?.trim()||'—'}</td><td><span style="font-family:'JetBrains Mono',monospace">${p.periodo}</span></td>
+        <td>${fmtM(p.receitas)}</td>
       </tr>`).join('')}</tbody>
     </table>`;
 }
 
-function closeModal() { document.getElementById('modalOverlay').classList.add('hidden'); }
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+function closeModal(){document.getElementById('modalOverlay').classList.add('hidden');}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
-async function loadAll() {
+async function loadAll(){
   await loadRanking();
-  if (currentTab === 'oportunidades') await loadOportunidades();
+  if(currentTab==='oportunidades')await loadOportunidades();
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-  const m = document.cookie.match(/user_name=([^;]+)/);
-  const name = m ? decodeURIComponent(m[1]) : 'Usuário';
-  document.getElementById('userName').textContent = name;
-  document.getElementById('userAvatar').textContent = name.charAt(0).toUpperCase();
+// Theme toggle
+(function(){
+  const root=document.documentElement;
+  const apply=mode=>{
+    root.setAttribute('data-theme',mode);
+    localStorage.setItem('iqvia-theme',mode);
+    document.getElementById('theme-light').classList.toggle('on',mode==='light');
+    document.getElementById('theme-dark').classList.toggle('on',mode==='dark');
+  };
+  apply(localStorage.getItem('iqvia-theme')||'light');
+  document.getElementById('theme-light').addEventListener('click',()=>apply('light'));
+  document.getElementById('theme-dark').addEventListener('click',()=>apply('dark'));
+})();
+
+document.addEventListener('DOMContentLoaded',async()=>{
+  const m=document.cookie.match(/user_name=([^;]+)/);
+  const name=m?decodeURIComponent(m[1]):'Usuário';
+  document.getElementById('userName').textContent=name;
+  document.getElementById('userAvatar').textContent=name.charAt(0).toUpperCase();
   await loadFilters();
   await loadAll();
 });
