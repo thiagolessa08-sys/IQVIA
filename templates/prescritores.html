@@ -54,25 +54,31 @@
   /* MAIN */
   .main{padding:22px 28px 32px;min-width:0;}
 
-  /* TOPBAR — barra única com filtros, sem borda externa */
-  .topbar{display:flex;align-items:center;gap:8px;padding:10px 0 14px;margin-bottom:8px;overflow-x:auto;}
-  .search{display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:7px 12px;min-width:200px;flex-shrink:0;}
-  .search input{border:0;outline:0;background:transparent;font-family:inherit;font-size:13px;color:var(--ink);width:160px;cursor:pointer;}
+  /* MAIN */
+  .main{padding:0 28px 32px;min-width:0;}
+
+  /* CABEÇALHO BRANCO — duas linhas */
+  .header-wrap{background:var(--surface);border-bottom:1px solid var(--line);margin:0 -28px 24px;padding:0 28px;}
+  .topbar{display:flex;align-items:center;gap:12px;height:54px;}
+  .filter-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 0 12px;}
+
+  .search{display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:7px 12px;flex-shrink:0;}
+  .search input{border:0;outline:0;background:transparent;font-family:inherit;font-size:13px;color:var(--ink);width:200px;cursor:pointer;}
   .search input::placeholder{color:var(--ink-3);}
-  .tbar-sep{width:1px;height:24px;background:var(--line-2);flex-shrink:0;margin:0 4px;}
-  .tbar-label{font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;flex-shrink:0;}
+  .tbar-sep{width:1px;height:24px;background:var(--line-2);flex-shrink:0;margin:0 2px;}
+  .tbar-label{font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:.08em;white-space:nowrap;flex-shrink:0;}
   .tbar-right{display:flex;align-items:center;gap:8px;margin-left:auto;flex-shrink:0;}
   .theme-toggle{display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:3px;gap:2px;flex-shrink:0;}
   .theme-toggle button{width:28px;height:28px;border:0;background:transparent;border-radius:999px;cursor:pointer;display:grid;place-items:center;color:var(--ink-3);font-family:inherit;}
   .theme-toggle button.on{background:var(--blue);color:#fff;}
   .theme-toggle svg{width:14px;height:14px;}
   .user{display:flex;align-items:center;gap:8px;}
-  .avatar{width:34px;height:34px;border-radius:999px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:12px;background:var(--blue);flex-shrink:0;}
+  .avatar{width:36px;height:36px;border-radius:999px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;background:var(--blue);flex-shrink:0;}
   .user-info .uname{font-size:13px;font-weight:700;line-height:1.2;}
   .user-info .umail{font-size:11px;color:var(--ink-3);}
-  .btn-clear{display:inline-flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--line-2);color:var(--ink-2);padding:7px 12px;border-radius:10px;font-size:13px;font-family:inherit;cursor:pointer;white-space:nowrap;transition:all .15s;flex-shrink:0;}
+  .btn-clear{display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--line-2);color:var(--ink-2);padding:6px 12px;border-radius:8px;font-size:13px;font-family:inherit;cursor:pointer;white-space:nowrap;transition:all .15s;}
   .btn-clear:hover{border-color:var(--ink-3);color:var(--ink);}
-  .btn-apply{display:inline-flex;align-items:center;gap:6px;background:var(--blue);border:none;color:#fff;padding:7px 14px;border-radius:10px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;transition:filter .15s;flex-shrink:0;}
+  .btn-apply{display:inline-flex;align-items:center;gap:6px;background:var(--blue);border:none;color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;transition:filter .15s;}
   .btn-apply:hover{filter:brightness(1.1);}
 
   /* PAGE HEAD */
@@ -82,11 +88,9 @@
   .page-sub{color:var(--ink-2);font-size:14px;margin:0;}
   .btn{font-family:inherit;font-weight:600;font-size:13.5px;padding:11px 18px;border-radius:12px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;border:1px solid transparent;transition:all .1s;}
 
-  /* FILTERS inline */
-  .filter-label{font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;}
-  select{background:var(--surface-2);border:1px solid var(--line);color:var(--ink);padding:7px 10px;border-radius:10px;font-size:13px;font-family:inherit;cursor:pointer;outline:none;transition:border-color .15s;flex-shrink:0;}
+  select{background:var(--surface-2);border:1px solid var(--line);color:var(--ink);padding:6px 10px;border-radius:8px;font-size:13px;font-family:inherit;cursor:pointer;outline:none;transition:border-color .15s;}
   select:focus{border-color:var(--blue);}
-  .fsep{width:1px;height:22px;background:var(--line-2);}
+  .fsep{width:1px;height:20px;background:var(--line-2);margin:0 2px;}
   /* MULTI-SELECT */
   .multi-select{position:relative;}
   .ms-trigger{display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--line);color:var(--ink);padding:7px 12px;border-radius:10px;font-size:13px;font-family:inherit;cursor:pointer;white-space:nowrap;min-width:175px;justify-content:space-between;transition:border-color .15s;}
@@ -257,66 +261,65 @@
 
 <!-- MAIN -->
 <main class="main">
-  <!-- TOPBAR com filtros integrados, sem borda externa -->
-  <div class="topbar">
-    <div class="search" onclick="location.href='/chat'" style="cursor:pointer;">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="var(--search-ink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <input placeholder="Chat IA: pergunte sobre os dados..." readonly style="cursor:pointer;">
-    </div>
-
-    <div class="tbar-sep"></div>
-
-    <div class="multi-select" id="msWrap">
-      <button type="button" class="ms-trigger" id="msTrigger" onclick="toggleMs()">
-        <span id="msLabel">Todas as moléculas</span>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
-      </button>
-      <div class="ms-dropdown" id="msDropdown" style="display:none;">
-        <div class="ms-search"><input type="text" id="msSearch" placeholder="Buscar molécula..." oninput="filterMsOptions()"></div>
-        <div class="ms-options" id="msOptions"></div>
-        <div class="ms-footer"><button onclick="clearMs()">Limpar seleção</button><span id="msCount">0 selecionadas</span></div>
+  <div class="header-wrap">
+    <!-- Linha 1: Chat IA + controles direita -->
+    <div class="topbar">
+      <div class="search" onclick="location.href='/chat'" style="cursor:pointer;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="var(--search-ink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <input placeholder="Chat IA: pergunte sobre os dados..." readonly style="cursor:pointer;">
       </div>
-    </div>
-
-    <select id="fLaboratorio"><option value="">Laboratório</option></select>
-    <select id="fEstado" onchange="onEstadoChange()"><option value="">Estado</option></select>
-    <select id="fCidade"><option value="">Cidade</option></select>
-
-    <div class="tbar-sep"></div>
-    <span class="tbar-label">De</span>
-    <select id="fPeriodoIni"><option value="">Início</option></select>
-    <span class="tbar-label">até</span>
-    <select id="fPeriodoFim"><option value="">Fim</option></select>
-
-    <div class="tbar-right">
-      <button class="btn-clear" onclick="clearFilters()">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        Limpar filtros
-      </button>
-      <button class="btn-apply" onclick="applyFilters()">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Aplicar
-      </button>
-      <div class="tbar-sep"></div>
-      <div class="theme-toggle" role="group">
-        <button id="theme-light" class="on" aria-label="Tema claro">
-          <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <div class="tbar-right">
+        <div class="theme-toggle" role="group">
+          <button id="theme-light" class="on" aria-label="Tema claro">
+            <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </button>
+          <button id="theme-dark" aria-label="Tema escuro">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <button class="btn-clear" onclick="clearFilters()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          Limpar filtros
         </button>
-        <button id="theme-dark" aria-label="Tema escuro">
-          <svg viewBox="0 0 24 24" fill="none"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-        </button>
-      </div>
-      <div class="user">
-        <div class="avatar" id="userAvatar">U</div>
-        <div class="user-info">
-          <div class="uname" id="userName">Usuário</div>
-          <div class="umail">IQVIA Analytics</div>
+        <div class="user">
+          <div class="avatar" id="userAvatar">U</div>
+          <div class="user-info">
+            <div class="uname" id="userName">Usuário</div>
+            <div class="umail">IQVIA Analytics</div>
+          </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <div id="msTags" class="ms-tags"></div>
+    <!-- Linha 2: Filtros (flex-wrap, sem scroll) -->
+    <div class="filter-bar">
+      <div class="multi-select" id="msWrap">
+        <button type="button" class="ms-trigger" id="msTrigger" onclick="toggleMs()">
+          <span id="msLabel">Todas as moléculas</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="ms-dropdown" id="msDropdown" style="display:none;">
+          <div class="ms-search"><input type="text" id="msSearch" placeholder="Buscar molécula..." oninput="filterMsOptions()"></div>
+          <div class="ms-options" id="msOptions"></div>
+          <div class="ms-footer"><button onclick="clearMs()">Limpar seleção</button><span id="msCount">0 selecionadas</span></div>
+        </div>
+      </div>
+      <select id="fLaboratorio"><option value="">Laboratório: Todos</option></select>
+      <select id="fEstado" onchange="onEstadoChange()"><option value="">Estado: Todos</option></select>
+      <select id="fCidade"><option value="">Cidade: Todas</option></select>
+      <div class="fsep"></div>
+      <span class="tbar-label">De</span>
+      <select id="fPeriodoIni"><option value="">Início</option></select>
+      <span class="tbar-label">até</span>
+      <select id="fPeriodoFim"><option value="">Fim</option></select>
+      <div class="fsep"></div>
+      <button class="btn-apply" onclick="applyFilters()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Aplicar filtros
+      </button>
+      <div id="msTags" class="ms-tags" style="margin-left:4px;padding:0;"></div>
+    </div>
+  </div>
 
   <div class="page-head">
     <h1 class="page-title">Análise de <em>Prescritores</em></h1>
