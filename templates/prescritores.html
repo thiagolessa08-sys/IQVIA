@@ -264,9 +264,10 @@
   <div class="header-wrap">
     <!-- Linha 1: Chat IA + controles direita -->
     <div class="topbar">
-      <div class="search" onclick="location.href='/chat'" style="cursor:pointer;">
+      <span style="font-size:13px;font-weight:700;color:var(--ink-2);white-space:nowrap;flex-shrink:0;">Chat IA:</span>
+      <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="var(--search-ink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <input placeholder="Chat IA: pergunte sobre os dados..." readonly style="cursor:pointer;">
+        <input id="headerQ" placeholder="Pergunte sobre os dados..." onkeydown="if(event.key==='Enter'&&this.value.trim()){location.href='/chat?q='+encodeURIComponent(this.value.trim());}">
       </div>
       <div class="tbar-right">
         <div class="theme-toggle" role="group">
