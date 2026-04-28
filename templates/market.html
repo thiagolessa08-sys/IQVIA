@@ -143,9 +143,26 @@
   ::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:999px;}
   [data-theme="dark"] .btn-primary{color:oklch(0.96 0.006 95);}
   [data-theme="dark"] .nav a.active{color:#fff;}
+
+  /* LOADING OVERLAY */
+  #pageLoader{position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity .4s ease,visibility .4s ease;}
+  #pageLoader.hidden{opacity:0;visibility:hidden;pointer-events:none;}
+  .loader-brand{font-family:'Instrument Serif',serif;font-size:48px;font-style:italic;color:var(--blue);letter-spacing:-0.02em;line-height:1;}
+  .loader-tag{font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:.14em;text-transform:uppercase;margin-top:-12px;}
+  .loader-ring{width:40px;height:40px;border:3px solid var(--line-2);border-top-color:var(--blue);border-radius:50%;animation:spin .75s linear infinite;margin-top:8px;}
+  .loader-txt{font-size:13px;color:var(--ink-3);font-weight:500;}
 </style>
 </head>
 <body>
+
+<!-- LOADING OVERLAY -->
+<div id="pageLoader">
+  <div class="loader-brand">IQVIA</div>
+  <div class="loader-tag">Pharma Analytics</div>
+  <div class="loader-ring"></div>
+  <div class="loader-txt">Carregando dados…</div>
+</div>
+
 <div class="app">
 
 <!-- SIDEBAR -->
@@ -486,6 +503,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   document.getElementById('userAvatar').textContent=name.charAt(0).toUpperCase();
   await loadFilters();
   await loadAll();
+  document.getElementById('pageLoader').classList.add('hidden');
 });
 </script>
 </body>
