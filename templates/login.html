@@ -29,16 +29,16 @@
   .split{display:grid;grid-template-columns:1fr 1fr;min-height:100vh;}
 
   /* PAINEL ESQUERDO */
-  .panel-left{background:var(--blue-ink);position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;padding:52px 56px;}
+  .panel-left{background:url('/static/img/login-bg.jpg') center/cover no-repeat;position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;padding:52px 56px;}
   .panel-left::before{
     content:"";position:absolute;inset:0;
-    background:
-      radial-gradient(70% 55% at 110% 110%, oklch(0.42 0.12 240/.85), transparent 65%),
-      radial-gradient(50% 40% at -10% -10%, oklch(0.38 0.10 260/.6), transparent 60%);
+    background:linear-gradient(160deg, rgba(8,18,50,.82) 0%, rgba(10,28,72,.72) 45%, rgba(5,12,38,.88) 100%);
+  }
+  .panel-left::after{
+    content:"";position:absolute;inset:0;
+    background:linear-gradient(to top, rgba(5,12,38,.55) 0%, transparent 50%);
   }
   .panel-left>*{position:relative;z-index:1;}
-  .dots{position:absolute;right:0;top:0;width:220px;height:220px;background-image:radial-gradient(circle, oklch(1 0 0 / .10) 1px, transparent 1px);background-size:22px 22px;mask-image:radial-gradient(ellipse at 100% 0%, black 30%, transparent 70%);}
-  .dots-b{position:absolute;left:0;bottom:0;width:180px;height:180px;background-image:radial-gradient(circle, oklch(1 0 0 / .08) 1px, transparent 1px);background-size:20px 20px;mask-image:radial-gradient(ellipse at 0% 100%, black 30%, transparent 70%);}
 
   .left-brand .logo{font-family:'Instrument Serif',serif;font-size:42px;font-style:italic;color:#fff;letter-spacing:-0.01em;line-height:1;}
   .left-brand .tag{font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:oklch(0.72 0.06 230);margin-top:6px;}
@@ -143,20 +143,20 @@
     </div>
 
     <div class="left-body">
-      <div class="headline">Inteligência de<br>mercado em <em>tempo real</em></div>
-      <div class="desc">Monitore prescrições, market share e performance de força de vendas com dados atualizados e análises orientadas a decisão.</div>
+      <div class="headline">Da molécula<br>ao <em>mercado</em></div>
+      <div class="desc">Rastreie prescrições, monitore laboratórios e identifique oportunidades terapêuticas com inteligência de dados farmacêuticos em tempo real.</div>
       <div class="left-stats">
         <div>
-          <div class="ls-val">98%</div>
-          <div class="ls-lbl">Cobertura nacional</div>
+          <div class="ls-val">219</div>
+          <div class="ls-lbl">Moléculas ativas</div>
         </div>
         <div>
-          <div class="ls-val">120s</div>
-          <div class="ls-lbl">Cache atualizado</div>
+          <div class="ls-val">887</div>
+          <div class="ls-lbl">Marcas monitoradas</div>
         </div>
         <div>
-          <div class="ls-val">6+</div>
-          <div class="ls-lbl">Dimensões de análise</div>
+          <div class="ls-val">27.9M</div>
+          <div class="ls-lbl">Receitas analisadas</div>
         </div>
       </div>
     </div>
