@@ -2,162 +2,326 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin — Carga de Dados</title>
+<meta name="viewport" content="width=1440">
+<title>Admin — IQVIA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg: #080e1c; --surface: #0f1a2e; --card: #162033;
-    --border: #1e3a5f; --blue: #3b82f6; --green: #10b981;
-    --yellow: #f59e0b; --red: #ef4444; --text: #e2e8f0; --muted: #64748b;
+  :root,[data-theme="light"]{
+    --bg:oklch(0.97 0.006 220);--surface:#fff;--surface-2:oklch(0.95 0.01 220);
+    --ink:oklch(0.18 0.02 220);--ink-2:oklch(0.42 0.02 220);--ink-3:oklch(0.62 0.015 220);
+    --line:oklch(0.92 0.01 220);--line-2:oklch(0.88 0.012 220);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.07);--icon-ink:#1a2a3a;--search-ink:#6b8099;
+    --blue:oklch(0.48 0.13 240);--blue-deep:oklch(0.30 0.08 240);--blue-ink:oklch(0.22 0.07 240);
+    --blue-soft:oklch(0.94 0.03 230);--radius:22px;--radius-sm:14px;
+    --green:oklch(0.52 0.15 150);--green-soft:oklch(0.94 0.04 150);
+    --amber:oklch(0.72 0.15 75);--amber-soft:oklch(0.96 0.04 80);
+    --rose:oklch(0.62 0.18 25);--rose-soft:oklch(0.96 0.03 25);
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif;
-         min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
-
-  .container { width: 100%; max-width: 520px; }
-
-  .logo { font-size: 22px; font-weight: 700; color: var(--blue); letter-spacing: 1px; margin-bottom: 6px; }
-  .subtitle { font-size: 13px; color: var(--muted); margin-bottom: 32px; }
-
-  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 32px; }
-  .card-title { font-size: 16px; font-weight: 700; margin-bottom: 24px; }
-
-  .status-box {
-    border-radius: 8px; padding: 14px 18px; margin-bottom: 20px;
-    font-size: 13px; display: flex; align-items: center; gap: 10px;
+  [data-theme="dark"]{
+    --bg:oklch(0.16 0.012 230);--surface:oklch(0.21 0.014 230);--surface-2:oklch(0.26 0.014 230);
+    --ink:oklch(0.96 0.006 95);--ink-2:oklch(0.78 0.01 220);--ink-3:oklch(0.58 0.012 220);
+    --line:oklch(0.28 0.014 230);--line-2:oklch(0.32 0.014 230);
+    --shadow-sm:0 1px 2px rgba(0,0,0,.35);--icon-ink:oklch(0.92 0.01 220);
+    --blue:oklch(0.64 0.13 240);--blue-deep:oklch(0.26 0.07 240);--blue-ink:oklch(0.22 0.07 240);--blue-soft:oklch(0.30 0.05 230);
+    --green:oklch(0.66 0.14 150);--green-soft:oklch(0.28 0.06 150);
+    --amber:oklch(0.78 0.14 75);--amber-soft:oklch(0.28 0.06 80);
+    --rose:oklch(0.70 0.16 25);--rose-soft:oklch(0.28 0.05 25);
   }
-  .status-ok     { background: rgba(16,185,129,.1); border: 1px solid rgba(16,185,129,.3); color: #34d399; }
-  .status-warn   { background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.3); color: #fbbf24; }
-  .status-error  { background: rgba(239,68,68,.1);  border: 1px solid rgba(239,68,68,.3);  color: #f87171; }
+  *{box-sizing:border-box;}html,body{margin:0;padding:0;}
+  body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;}
 
-  label { display: block; font-size: 12px; font-weight: 600; color: var(--muted);
-          text-transform: uppercase; letter-spacing: .5px; margin-bottom: 7px; }
+  .app{display:grid;grid-template-columns:260px 1fr;min-height:100vh;}
 
-  input[type="text"], input[type="password"] {
-    width: 100%; background: var(--surface); border: 1px solid var(--border);
-    color: var(--text); padding: 10px 14px; border-radius: 8px; font-size: 14px;
-    outline: none; transition: border-color .2s; margin-bottom: 18px;
-  }
-  input:focus { border-color: var(--blue); }
+  /* SIDEBAR */
+  .sidebar{background:var(--surface);border-right:1px solid var(--line);padding:26px 20px 20px;display:flex;flex-direction:column;gap:24px;position:sticky;top:0;height:100vh;overflow-y:auto;}
+  .brand-name{font-family:'Instrument Serif',serif;font-size:32px;font-style:italic;color:var(--blue);letter-spacing:-0.01em;line-height:1;}
+  .brand-tag{font-size:11px;color:var(--ink-3);font-weight:600;letter-spacing:0.1em;text-transform:uppercase;margin-top:2px;}
+  .nav-label{font-size:11px;letter-spacing:.14em;color:var(--ink-3);font-weight:600;padding:0 12px;text-transform:uppercase;margin-bottom:6px;}
+  .nav{display:flex;flex-direction:column;gap:2px;}
+  .nav a{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;color:var(--ink-2);text-decoration:none;font-size:14px;font-weight:500;transition:all .15s;}
+  .nav a:hover{background:var(--blue-soft);color:var(--ink);}
+  .nav a.active{background:var(--blue);color:#fff;}
+  .nav a svg{width:18px;height:18px;flex:0 0 18px;}
+  .promo{margin-top:auto;background:var(--blue-ink);color:#fff;border-radius:18px;padding:18px;position:relative;overflow:hidden;}
+  .promo::before{content:"";position:absolute;inset:0;background:radial-gradient(80% 60% at 100% 100%,oklch(0.42 0.12 240/.9),transparent 70%);opacity:.9;}
+  .promo>*{position:relative;}
+  .promo h4{margin:0 0 4px;font-size:15px;font-weight:700;}
+  .promo p{margin:0 0 14px;font-size:12.5px;color:oklch(0.88 0.015 220);line-height:1.45;}
+  .promo button{border:0;background:#fff;color:var(--blue-ink);padding:8px 16px;border-radius:999px;font-weight:700;font-size:12px;font-family:inherit;cursor:pointer;width:100%;}
 
-  .file-zone {
-    border: 2px dashed var(--border); border-radius: 8px; padding: 32px 20px;
-    text-align: center; cursor: pointer; transition: all .2s; margin-bottom: 18px;
-    position: relative;
-  }
-  .file-zone:hover, .file-zone.drag { border-color: var(--blue); background: rgba(59,130,246,.05); }
-  .file-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
-  .file-icon { font-size: 32px; margin-bottom: 8px; }
-  .file-label { font-size: 14px; color: var(--muted); }
-  .file-label strong { color: var(--blue); }
-  .file-name { font-size: 13px; color: var(--green); margin-top: 6px; font-weight: 600; }
+  /* MAIN */
+  .main{padding:22px 28px 32px;min-width:0;}
 
-  .btn {
-    width: 100%; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 700;
-    cursor: pointer; border: none; transition: all .2s;
-  }
-  .btn-primary { background: var(--blue); color: #fff; }
-  .btn-primary:hover { background: #2563eb; }
-  .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+  /* TOPBAR */
+  .topbar{display:grid;grid-template-columns:1fr auto;align-items:center;gap:24px;margin-bottom:28px;}
+  .theme-toggle{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px;gap:2px;}
+  .theme-toggle button{width:32px;height:32px;border:0;background:transparent;border-radius:999px;cursor:pointer;display:grid;place-items:center;color:var(--ink-3);font-family:inherit;}
+  .theme-toggle button.on{background:var(--blue);color:#fff;}
+  .theme-toggle svg{width:15px;height:15px;}
+  .user{display:flex;align-items:center;gap:10px;}
+  .avatar{width:40px;height:40px;border-radius:999px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;background:var(--blue);}
+  .user-info .uname{font-size:13.5px;font-weight:700;line-height:1.2;}
+  .user-info .umail{font-size:11.5px;color:var(--ink-3);}
+  .topbar-right{display:flex;align-items:center;gap:12px;}
 
-  .progress { display: none; margin-top: 16px; }
-  .progress-bar-wrap { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
-  .progress-bar { height: 100%; background: var(--blue); border-radius: 3px; animation: indeterminate 1.5s infinite; }
-  @keyframes indeterminate { 0% { margin-left: -40%; width: 40%; } 100% { margin-left: 100%; width: 40%; } }
-  .progress-text { font-size: 13px; color: var(--muted); text-align: center; }
+  /* PAGE HEAD */
+  .page-head{margin-bottom:28px;}
+  .page-title{font-family:'Instrument Serif',serif;font-size:44px;letter-spacing:-0.02em;margin:0 0 6px;font-weight:400;}
+  .page-title em{font-style:italic;color:var(--blue);}
+  .page-sub{color:var(--ink-2);font-size:14px;margin:0;}
 
-  .nav-back { margin-top: 20px; text-align: center; font-size: 13px; }
-  .nav-back a { color: var(--muted); text-decoration: none; }
-  .nav-back a:hover { color: var(--text); }
+  /* GRID */
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:18px;}
+  .c-5{grid-column:span 5;}.c-7{grid-column:span 7;}
+  .card{background:var(--surface);border-radius:var(--radius);border:1px solid var(--line);padding:24px;}
+  .card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
+  .card-head h3{margin:0;font-size:16px;font-weight:700;}
 
-  .info-row { display: flex; justify-content: space-between; font-size: 13px; padding: 8px 0; border-bottom: 1px solid rgba(30,58,95,.4); }
-  .info-row:last-child { border-bottom: none; }
-  .info-val { font-weight: 600; color: var(--text); }
+  /* STATUS */
+  .status-box{border-radius:var(--radius-sm);padding:14px 18px;margin-bottom:18px;font-size:13px;display:flex;align-items:center;gap:10px;font-weight:500;}
+  .status-ok{background:var(--green-soft);border:1px solid oklch(0.82 0.08 150);color:oklch(0.32 0.12 150);}
+  .status-warn{background:var(--amber-soft);border:1px solid oklch(0.86 0.10 75);color:oklch(0.40 0.12 75);}
+  .status-error{background:var(--rose-soft);border:1px solid oklch(0.86 0.10 25);color:oklch(0.40 0.14 25);}
+  [data-theme="dark"] .status-ok{background:oklch(0.26 0.06 150);border-color:oklch(0.38 0.08 150);color:oklch(0.78 0.12 150);}
+  [data-theme="dark"] .status-warn{background:oklch(0.26 0.05 80);border-color:oklch(0.38 0.08 80);color:oklch(0.82 0.10 75);}
+  [data-theme="dark"] .status-error{background:oklch(0.26 0.05 25);border-color:oklch(0.38 0.08 25);color:oklch(0.80 0.12 25);}
+
+  /* FORM */
+  label{display:block;font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px;}
+  input[type="text"],input[type="password"]{width:100%;background:var(--surface-2);border:1px solid var(--line);color:var(--ink);padding:10px 14px;border-radius:12px;font-size:14px;font-family:inherit;outline:none;transition:border-color .2s;margin-bottom:18px;}
+  input[type="text"]:focus,input[type="password"]:focus{border-color:var(--blue);box-shadow:0 0 0 3px oklch(0.48 0.13 240 / .10);}
+
+  /* FILE ZONE */
+  .file-zone{border:2px dashed var(--line-2);border-radius:var(--radius-sm);padding:32px 20px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:18px;position:relative;}
+  .file-zone:hover,.file-zone.drag{border-color:var(--blue);background:var(--blue-soft);}
+  .file-zone input[type="file"]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;}
+  .file-icon{width:48px;height:48px;background:var(--blue-soft);border-radius:14px;display:grid;place-items:center;color:var(--blue);margin:0 auto 12px;}
+  .file-label{font-size:14px;color:var(--ink-2);}
+  .file-label strong{color:var(--blue);}
+  .file-name{font-size:12.5px;color:var(--green);margin-top:8px;font-weight:600;font-family:'JetBrains Mono',monospace;}
+
+  /* BUTTON */
+  .btn-submit{width:100%;padding:13px;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;border:none;background:var(--blue);color:#fff;font-family:inherit;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px;}
+  .btn-submit:hover{filter:brightness(1.1);}
+  .btn-submit:disabled{opacity:.5;cursor:not-allowed;filter:none;}
+
+  /* PROGRESS */
+  .progress{display:none;margin-top:16px;}
+  .progress-bar-wrap{height:6px;background:var(--line);border-radius:999px;overflow:hidden;margin-bottom:8px;}
+  .progress-bar{height:100%;background:var(--blue);border-radius:999px;animation:indeterminate 1.5s infinite;}
+  @keyframes indeterminate{0%{margin-left:-40%;width:40%}100%{margin-left:100%;width:40%}}
+  .progress-text{font-size:12.5px;color:var(--ink-3);text-align:center;}
+
+  /* INFO ROWS */
+  .info-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:11px 0;border-bottom:1px dashed var(--line);}
+  .info-row:last-child{border-bottom:none;}
+  .info-key{color:var(--ink-3);font-weight:500;}
+  .info-val{font-weight:700;color:var(--ink);font-family:'JetBrains Mono',monospace;font-size:12.5px;}
+
+  [data-theme="dark"] .nav a.active{color:#fff;}
+  ::-webkit-scrollbar{width:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:999px;}
 </style>
 </head>
 <body>
-<div class="container">
-  <div class="logo">IQVIA</div>
-  <div class="subtitle">Painel Administrativo — Carga de Dados</div>
+<div class="app">
 
-  <div class="card">
-    <div class="card-title">Status do Banco de Dados</div>
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div>
+    <div class="brand-name">IQVIA</div>
+    <div class="brand-tag">Pharma Analytics</div>
+  </div>
+  <div>
+    <div class="nav-label">Análises</div>
+    <nav class="nav" style="margin-top:8px">
+      <a href="/market">
+        <svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="20" x2="18" y2="10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="12" y1="20" x2="12" y2="4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="6" y1="20" x2="6" y2="14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Market Intelligence
+      </a>
+      <a href="/prescritores">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Prescritores
+      </a>
+      <a href="/chat">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Chat IA
+      </a>
+    </nav>
+  </div>
+  <div>
+    <div class="nav-label">Admin</div>
+    <nav class="nav" style="margin-top:8px">
+      <a class="active" href="/admin/load">
+        <svg viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="5" rx="9" ry="3" stroke="currentColor" stroke-width="1.8"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Carga de Dados
+      </a>
+      <a href="/logout">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Sair
+      </a>
+    </nav>
+  </div>
+  <div class="promo">
+    <h4>Analise com<br/>Inteligência IA</h4>
+    <p>Faça perguntas em linguagem natural sobre prescrições e mercado.</p>
+    <button onclick="location.href='/chat'">Perguntar à IA</button>
+  </div>
+</aside>
 
-    {% if table_exists %}
-    <div class="status-box status-ok">
-      ✓ Tabela <strong>prescricoes</strong> carregada — {{ "{:,}".format(row_count).replace(",",".") }} linhas
-    </div>
-    {% else %}
-    <div class="status-box status-warn">
-      ⚠ Tabela <strong>prescricoes</strong> ainda não foi carregada
-    </div>
-    {% endif %}
+<!-- MAIN -->
+<main class="main">
 
-    {% if success %}
-    <div class="status-box status-ok">
-      ✓ Carga concluída com sucesso — {{ "{:,}".format(row_count).replace(",",".") }} linhas importadas!
-    </div>
-    {% endif %}
-
-    {% if error %}
-    <div class="status-box status-error">✕ {{ error }}</div>
-    {% endif %}
-
-    <div style="margin-bottom:24px">
-      <div class="info-row"><span style="color:var(--muted)">Formato aceito</span><span class="info-val">CSV (até 300 MB)</span></div>
-      <div class="info-row"><span style="color:var(--muted)">Colunas esperadas</span><span class="info-val">CRM, Médico, Período, Canal, Brick...</span></div>
-      <div class="info-row"><span style="color:var(--muted)">Comportamento</span><span class="info-val">Substitui dados anteriores</span></div>
-    </div>
-
-    <form method="POST" enctype="multipart/form-data" onsubmit="startUpload()">
-      <label>Chave de Admin</label>
-      <input type="password" name="admin_key" placeholder="Chave de acesso admin" required autocomplete="off">
-
-      <label>Arquivo CSV</label>
-      <div class="file-zone" id="fileZone">
-        <input type="file" name="csv_file" accept=".csv" required onchange="showFileName(this)">
-        <div class="file-icon">📂</div>
-        <div class="file-label">Arraste o CSV aqui ou <strong>clique para selecionar</strong></div>
-        <div class="file-name" id="fileName"></div>
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div></div>
+    <div class="topbar-right">
+      <div class="theme-toggle" role="group">
+        <button id="theme-light" class="on" aria-label="Tema claro">
+          <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <button id="theme-dark" aria-label="Tema escuro">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        </button>
       </div>
-
-      <button class="btn btn-primary" type="submit" id="submitBtn">
-        Carregar Dados no Banco
-      </button>
-
-      <div class="progress" id="progress">
-        <div class="progress-bar-wrap"><div class="progress-bar"></div></div>
-        <div class="progress-text">Enviando e processando o arquivo — pode levar alguns minutos...</div>
+      <div class="user">
+        <div class="avatar">A</div>
+        <div class="user-info">
+          <div class="uname">Admin</div>
+          <div class="umail">IQVIA Analytics</div>
+        </div>
       </div>
-    </form>
+    </div>
   </div>
 
-  <div class="nav-back">
-    <a href="/market">← Voltar para o painel</a>
+  <!-- PAGE HEAD -->
+  <div class="page-head">
+    <h1 class="page-title">Carga de <em>Dados</em></h1>
+    <p class="page-sub">Painel administrativo · Importação de CSV para a base prescricoes</p>
   </div>
+
+  <div class="grid">
+
+    <!-- FORM -->
+    <div class="card c-5">
+      <div class="card-head">
+        <h3>Importar CSV</h3>
+      </div>
+
+      {% if table_exists %}
+      <div class="status-box status-ok">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Tabela <strong style="font-family:'JetBrains Mono',monospace;margin:0 4px">prescricoes</strong> carregada — {{ "{:,}".format(row_count).replace(",",".") }} linhas
+      </div>
+      {% else %}
+      <div class="status-box status-warn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Tabela <strong style="font-family:'JetBrains Mono',monospace;margin:0 4px">prescricoes</strong> ainda não foi carregada
+      </div>
+      {% endif %}
+
+      {% if success %}
+      <div class="status-box status-ok">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Carga concluída — {{ "{:,}".format(row_count).replace(",",".") }} linhas importadas!
+      </div>
+      {% endif %}
+
+      {% if error %}
+      <div class="status-box status-error">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><line x1="15" y1="9" x2="9" y2="15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="9" y1="9" x2="15" y2="15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        {{ error }}
+      </div>
+      {% endif %}
+
+      <form method="POST" enctype="multipart/form-data" onsubmit="startUpload()">
+        <label>Chave de Admin</label>
+        <input type="password" name="admin_key" placeholder="Chave de acesso admin" required autocomplete="off">
+
+        <label>Arquivo CSV</label>
+        <div class="file-zone" id="fileZone">
+          <input type="file" name="csv_file" accept=".csv" required onchange="showFileName(this)">
+          <div class="file-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="file-label">Arraste o CSV aqui ou <strong>clique para selecionar</strong></div>
+          <div class="file-name" id="fileName"></div>
+        </div>
+
+        <button class="btn-submit" type="submit" id="submitBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="5" rx="9" ry="3" stroke="currentColor" stroke-width="1.8"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          Carregar Dados no Banco
+        </button>
+
+        <div class="progress" id="progress">
+          <div class="progress-bar-wrap"><div class="progress-bar"></div></div>
+          <div class="progress-text">Enviando e processando — pode levar alguns minutos…</div>
+        </div>
+      </form>
+    </div>
+
+    <!-- INFO -->
+    <div class="c-7" style="display:flex;flex-direction:column;gap:18px;">
+      <div class="card">
+        <div class="card-head"><h3>Especificações do CSV</h3></div>
+        <div class="info-row"><span class="info-key">Separador</span><span class="info-val">ponto-e-vírgula ( ; )</span></div>
+        <div class="info-row"><span class="info-key">Encoding</span><span class="info-val">UTF-8</span></div>
+        <div class="info-row"><span class="info-key">Tamanho máximo</span><span class="info-val">300 MB</span></div>
+        <div class="info-row"><span class="info-key">Comportamento</span><span class="info-val">Substitui dados anteriores</span></div>
+        <div class="info-row"><span class="info-key">Índices criados</span><span class="info-val">molecula, laboratorio, estado, periodo, crm</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Colunas Esperadas</h3></div>
+        <div class="info-row"><span class="info-key">Col. 1</span><span class="info-val">CRM</span></div>
+        <div class="info-row"><span class="info-key">Col. 2</span><span class="info-val">Médico</span></div>
+        <div class="info-row"><span class="info-key">Col. 3</span><span class="info-val">Período (YYYYMM)</span></div>
+        <div class="info-row"><span class="info-key">Col. 4</span><span class="info-val">Canal</span></div>
+        <div class="info-row"><span class="info-key">Col. 5</span><span class="info-val">Brick</span></div>
+        <div class="info-row"><span class="info-key">Col. 6</span><span class="info-val">Cidade</span></div>
+        <div class="info-row"><span class="info-key">Col. 7</span><span class="info-val">Estado</span></div>
+        <div class="info-row"><span class="info-key">Col. 8</span><span class="info-val">Laboratório</span></div>
+        <div class="info-row"><span class="info-key">Col. 9</span><span class="info-val">Marca</span></div>
+        <div class="info-row"><span class="info-key">Col. 10</span><span class="info-val">Molécula</span></div>
+        <div class="info-row"><span class="info-key">Col. 11</span><span class="info-val">Qtde Medicamentos (inteiro)</span></div>
+        <div class="info-row"><span class="info-key">Col. 12</span><span class="info-val">Qtde Receitas (inteiro)</span></div>
+      </div>
+    </div>
+
+  </div>
+</main>
 </div>
 
 <script>
-function showFileName(input) {
-  const name = input.files[0]?.name || '';
-  document.getElementById('fileName').textContent = name;
-  const size = input.files[0]?.size || 0;
-  if (size) {
-    document.getElementById('fileName').textContent =
-      name + ' (' + (size / 1024 / 1024).toFixed(1) + ' MB)';
-  }
+function showFileName(input){
+  const f=input.files[0];if(!f)return;
+  const size=(f.size/1024/1024).toFixed(1);
+  document.getElementById('fileName').textContent=`${f.name} (${size} MB)`;
 }
-
-function startUpload() {
-  document.getElementById('submitBtn').disabled = true;
-  document.getElementById('submitBtn').textContent = 'Processando...';
-  document.getElementById('progress').style.display = 'block';
+function startUpload(){
+  document.getElementById('submitBtn').disabled=true;
+  document.getElementById('submitBtn').innerHTML=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8" stroke-dasharray="31.4" stroke-dashoffset="31.4" style="animation:spin .8s linear infinite"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur=".8s" repeatCount="indefinite"/></circle></svg> Processando…`;
+  document.getElementById('progress').style.display='block';
 }
+const zone=document.getElementById('fileZone');
+zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('drag');});
+zone.addEventListener('dragleave',()=>zone.classList.remove('drag'));
+zone.addEventListener('drop',()=>zone.classList.remove('drag'));
 
-const zone = document.getElementById('fileZone');
-zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
-zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
-zone.addEventListener('drop', () => zone.classList.remove('drag'));
+// Theme toggle
+(function(){
+  const root=document.documentElement;
+  const apply=mode=>{
+    root.setAttribute('data-theme',mode);
+    localStorage.setItem('iqvia-theme',mode);
+    document.getElementById('theme-light').classList.toggle('on',mode==='light');
+    document.getElementById('theme-dark').classList.toggle('on',mode==='dark');
+  };
+  apply(localStorage.getItem('iqvia-theme')||'light');
+  document.getElementById('theme-light').addEventListener('click',()=>apply('light'));
+  document.getElementById('theme-dark').addEventListener('click',()=>apply('dark'));
+})();
 </script>
 </body>
 </html>
