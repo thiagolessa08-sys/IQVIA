@@ -30,8 +30,12 @@ def get_engine():
         _engine = create_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=10)
     return _engine
 
+# Tabela real no banco SQL Server
+TABLE_PRESC = os.environ.get("TABLE_PRESC", "qqhetl.PBS_AI_ANALYTICS")
+
 def adapt_sql(sql):
-    """Converte LIMIT n (PostgreSQL) → TOP n (SQL Server)."""
+    """Redireciona 'prescricoes' para a tabela real e converte LIMIT→TOP."""
+    sql = re.sub(r'\bprescricoes\b', TABLE_PRESC, sql)
     m = re.search(r'\bLIMIT\s+(\d+)\s*;?\s*$', sql.strip(), re.IGNORECASE)
     if m:
         n   = m.group(1)
@@ -75,16 +79,18 @@ def execute(sql, params=()):
 
 def table_exists(name):
     if USE_MSSQL:
+        # Verifica a tabela real (ignora o argumento 'name' no modo MSSQL)
         rows = query(
             "SELECT COUNT(*) AS ex FROM information_schema.tables "
-            "WHERE table_name=?", (name,))
+            "WHERE table_schema='qqhetl' AND table_name='PBS_AI_ANALYTICS'")
         return bool(rows[0]["ex"])
     rows = query("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (name,))
     return bool(rows)
 
 def _df_to_table(df, table_name):
     if USE_MSSQL:
-        df.to_sql(table_name, get_engine(), if_exists="replace", index=False, chunksize=5000)
+        df.to_sql("PBS_AI_ANALYTICS", get_engine(), schema="qqhetl",
+                  if_exists="replace", index=False, chunksize=5000)
     else:
         con = sqlite3.connect(DB_PATH)
         df.to_sql(table_name, con, if_exists="replace", index=False)
@@ -147,6 +153,9 @@ PRESCRICOES_CSV = os.path.join(os.path.dirname(__file__), "data", "prescricoes.c
 os.makedirs(os.path.join(os.path.dirname(__file__), "data"), exist_ok=True)
 
 def init_prescricoes():
+    if USE_MSSQL:
+        print(f"[init] Modo SQL Server — usando tabela {TABLE_PRESC}.")
+        return
     if table_exists("prescricoes"):
         print("[init] Tabela prescricoes já existe.")
         return
@@ -172,20 +181,21 @@ def init_prescricoes():
 def ensure_indexes():
     if not USE_MSSQL:
         return
+    T = TABLE_PRESC
     idxs = [
-        ("idx_presc_molecula",    "prescricoes(molecula)"),
-        ("idx_presc_laboratorio", "prescricoes(laboratorio)"),
-        ("idx_presc_estado",      "prescricoes(estado)"),
-        ("idx_presc_periodo",     "prescricoes(periodo)"),
-        ("idx_presc_crm",         "prescricoes(crm)"),
-        ("idx_presc_marca",       "prescricoes(marca)"),
+        ("idx_pbs_molecula",    f"{T}(molecula)"),
+        ("idx_pbs_laboratorio", f"{T}(laboratorio)"),
+        ("idx_pbs_estado",      f"{T}(estado)"),
+        ("idx_pbs_periodo",     f"{T}(periodo)"),
+        ("idx_pbs_crm",         f"{T}(crm)"),
+        ("idx_pbs_marca",       f"{T}(marca)"),
     ]
     for name, cols in idxs:
         try:
             with get_engine().connect() as conn:
                 exists = conn.execute(text(
                     "SELECT 1 FROM sys.indexes "
-                    "WHERE name=:n AND object_id=OBJECT_ID('prescricoes')"
+                    f"WHERE name=:n AND object_id=OBJECT_ID('{T}')"
                 ), {"n": name}).fetchone()
                 if not exists:
                     conn.execute(text(f"CREATE INDEX {name} ON {cols}"))
@@ -496,7 +506,7 @@ def chat():
     query_tool = {
         "name": "query_database",
         "description": (
-            "Executa SQL SELECT na tabela prescricoes (SQL Server). "
+            f"Executa SQL SELECT na tabela {TABLE_PRESC} (SQL Server). "
             "Use TOP n em vez de LIMIT n. "
             "Colunas: crm, medico, periodo (YYYYMM), canal, brick, cidade, estado, "
             "laboratorio, marca, molecula, qtde_med (qtde medicamentos), qtde_rec (qtde receitas)."
