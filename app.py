@@ -12,11 +12,12 @@ app.config["MAX_CONTENT_LENGTH"] = 300 * 1024 * 1024  # 300 MB
 DB_PATH = os.path.join(os.path.dirname(__file__), "data", "iqvia.db")
 
 # ── DB Layer (HTTP API → claude.sqltech.com.br/execute) ──────────────────
-_DB_HOST    = os.environ.get("DATABASE_HOST", "claude.sqltech.com.br")
-_DB_PORT    = int(os.environ.get("DATABASE_PORT", "443"))
-_DB_API_KEY = os.environ.get("API_KEY", "")
+# O middleware injeta x-api-key automaticamente ao repassar ao FortiGate.
+# Nossa aplicação só precisa do host — sem API_KEY no lado Flask.
+_DB_HOST     = os.environ.get("DATABASE_HOST", "claude.sqltech.com.br")
+_DB_PORT     = int(os.environ.get("DATABASE_PORT", "443"))
 _DB_API_BASE = f"https://{_DB_HOST}:{_DB_PORT}"
-USE_HTTP_API = bool(_DB_HOST and _DB_API_KEY)
+USE_HTTP_API = bool(_DB_HOST)   # ativo sempre que o host estiver definido
 
 # Tabela real no SAP IQ
 TABLE_PRESC = os.environ.get("TABLE_PRESC", "qqhetl.PBS_AI_ANALYTICS")
@@ -46,12 +47,13 @@ def _inline_params(sql, params):
     return sql
 
 def _api_call(sql):
-    """Envia SQL à API HTTP e retorna lista de dicts."""
+    """Envia SQL à API HTTP e retorna lista de dicts.
+    O middleware insere x-api-key automaticamente — não enviamos chave aqui."""
     resp = requests.post(
         f"{_DB_API_BASE}/execute",
         json={"sql": sql},
-        headers={"x-api-key": _DB_API_KEY, "Content-Type": "application/json"},
-        verify=False,   # cert GoDaddy válido mas evita problemas de CA chain
+        headers={"Content-Type": "application/json"},
+        verify=False,   # cert GoDaddy — evita erro de CA chain no Railway
         timeout=30
     )
     resp.raise_for_status()
@@ -604,7 +606,6 @@ def debug():
         "use_http_api": USE_HTTP_API,
         "api_host":     _DB_HOST,
         "api_port":     _DB_PORT,
-        "api_key_set":  bool(_DB_API_KEY),
         "table":        TABLE_PRESC,
         "table_prescricoes": False,
         "row_count": 0,
@@ -625,8 +626,7 @@ def test_db():
     import time
     result = {
         "config": {
-            "api_base":    _DB_API_BASE,
-            "api_key_set": bool(_DB_API_KEY),
+            "api_base":     _DB_API_BASE,
             "use_http_api": USE_HTTP_API,
             "table":        TABLE_PRESC,
         },
@@ -634,7 +634,7 @@ def test_db():
     }
 
     if not USE_HTTP_API:
-        result["steps"]["0_config"] = {"ok": False, "erro": "API_KEY não configurada — defina a variável de ambiente API_KEY no Railway."}
+        result["steps"]["0_config"] = {"ok": False, "erro": "DATABASE_HOST não configurado."}
         result["status"] = "SEM_CONFIG"
         return jsonify(result)
 
