@@ -662,6 +662,8 @@ def test_db():
             "api_base":     _DB_API_BASE,
             "use_http_api": USE_HTTP_API,
             "api_key_set":  bool(_DB_API_KEY),
+            "cert_loaded":  _CLIENT_CERT is not None,
+            "cert_path":    _CLIENT_CERT[0] if _CLIENT_CERT else "não carregado",
             "table":        TABLE_PRESC,
         },
         "steps": {}
