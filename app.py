@@ -12,10 +12,11 @@ app.config["MAX_CONTENT_LENGTH"] = 300 * 1024 * 1024  # 300 MB
 DB_PATH = os.path.join(os.path.dirname(__file__), "data", "iqvia.db")
 
 # ── DB Layer (HTTP API → claude.sqltech.com.br/execute) ──────────────────
-# O middleware injeta x-api-key automaticamente ao repassar ao FortiGate.
-# Nossa aplicação só precisa do host — sem API_KEY no lado Flask.
+# O middleware exige x-api-key de quem o chama, e injeta sua própria chave
+# ao repassar internamente ao FortiGate/SAP IQ.
 _DB_HOST     = os.environ.get("DATABASE_HOST", "claude.sqltech.com.br")
 _DB_PORT     = int(os.environ.get("DATABASE_PORT", "443"))
+_DB_API_KEY  = os.environ.get("API_KEY", "")          # definir no Railway
 _DB_API_BASE = f"https://{_DB_HOST}:{_DB_PORT}"
 USE_HTTP_API = bool(_DB_HOST)   # ativo sempre que o host estiver definido
 
@@ -47,12 +48,14 @@ def _inline_params(sql, params):
     return sql
 
 def _api_call(sql):
-    """Envia SQL à API HTTP e retorna lista de dicts.
-    O middleware insere x-api-key automaticamente — não enviamos chave aqui."""
+    """Envia SQL à API HTTP e retorna lista de dicts."""
+    hdrs = {"Content-Type": "application/json"}
+    if _DB_API_KEY:
+        hdrs["x-api-key"] = _DB_API_KEY
     resp = requests.post(
         f"{_DB_API_BASE}/execute",
         json={"sql": sql},
-        headers={"Content-Type": "application/json"},
+        headers=hdrs,
         verify=False,   # cert GoDaddy — evita erro de CA chain no Railway
         timeout=30
     )
@@ -628,6 +631,7 @@ def test_db():
         "config": {
             "api_base":     _DB_API_BASE,
             "use_http_api": USE_HTTP_API,
+            "api_key_set":  bool(_DB_API_KEY),
             "table":        TABLE_PRESC,
         },
         "steps": {}
