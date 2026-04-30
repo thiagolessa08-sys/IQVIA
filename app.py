@@ -18,7 +18,47 @@ _MSSQL_DB   = os.environ.get("MSSQL_DB",   "IQHML")
 USE_MSSQL   = bool(_MSSQL_HOST and _MSSQL_USER)
 
 # ── DB Layer (SQLAlchemy + pymssql — SQL Server) ──────────────────────────
-_engine = None
+_engine      = None
+_CA_CERT_PATH = None   # preenchido por _setup_mssql_ssl()
+
+def _setup_mssql_ssl():
+    """Decodifica o PFX (env MSSQL_CERT_B64) e configura FreeTDS para SSL."""
+    global _CA_CERT_PATH
+    cert_b64  = os.environ.get("MSSQL_CERT_B64", "")
+    cert_pass = os.environ.get("MSSQL_CERT_PASS", "1234").encode()
+    if not cert_b64:
+        return
+    try:
+        import base64
+        from cryptography.hazmat.primitives.serialization import pkcs12, Encoding
+        pfx_data = base64.b64decode(cert_b64)
+        _, certificate, extra = pkcs12.load_key_and_certificates(pfx_data, cert_pass)
+        # Grava cadeia de certificados em PEM
+        ca_path = "/tmp/sqltech_ca.pem"
+        with open(ca_path, "wb") as f:
+            if certificate:
+                f.write(certificate.public_bytes(Encoding.PEM))
+            for c in (extra or []):
+                f.write(c.public_bytes(Encoding.PEM))
+        # Cria freetds.conf apontando para o cert
+        freetds_conf = (
+            f"[{_MSSQL_HOST}]\n"
+            f"    host = {_MSSQL_HOST}\n"
+            f"    port = {_MSSQL_PORT}\n"
+            f"    tds version = 7.4\n"
+            f"    ssl = yes\n"
+            f"    ca file = {ca_path}\n"
+        )
+        freetds_path = "/tmp/freetds.conf"
+        with open(freetds_path, "w") as f:
+            f.write(freetds_conf)
+        os.environ["FREETDSCONF"] = freetds_path
+        _CA_CERT_PATH = ca_path
+        print(f"[ssl] Certificado configurado em {ca_path}")
+    except Exception as e:
+        print(f"[ssl] Aviso ao configurar SSL: {e}")
+
+_setup_mssql_ssl()   # roda uma vez no startup
 
 def get_engine():
     global _engine
@@ -29,10 +69,10 @@ def get_engine():
                f"@{_MSSQL_HOST}:{_MSSQL_PORT}/{_MSSQL_DB}")
         _engine = create_engine(
             url,
-            pool_pre_ping=False,           # evita ping extra no startup
+            pool_pre_ping=False,
             pool_size=5,
             max_overflow=10,
-            connect_args={"timeout": 8},   # timeout de 8s por tentativa
+            connect_args={"timeout": 8},
         )
     return _engine
 
@@ -620,11 +660,12 @@ def admin_load_post():
 @app.route("/api/debug")
 def debug():
     result = {
-        "use_mssql": USE_MSSQL,
-        "mssql_host": _MSSQL_HOST,
-        "mssql_port": _MSSQL_PORT,
-        "mssql_user": _MSSQL_USER,
-        "mssql_db":   _MSSQL_DB,
+        "use_mssql":   USE_MSSQL,
+        "mssql_host":  _MSSQL_HOST,
+        "mssql_port":  _MSSQL_PORT,
+        "mssql_user":  _MSSQL_USER,
+        "mssql_db":    _MSSQL_DB,
+        "ssl_cert":    _CA_CERT_PATH or "não configurado",
         "table_prescricoes": False,
         "row_count": 0,
         "error": None
