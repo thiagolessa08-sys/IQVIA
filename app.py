@@ -66,8 +66,8 @@ def get_engine():
             _setup_mssql_ssl()
         from urllib.parse import quote_plus
         pw  = quote_plus(_MSSQL_PASS)
-        # SAP IQ usa protocolo Sybase (TDS 5.0) via pymssql
-        url = (f"sybase+pymssql://{_MSSQL_USER}:{pw}"
+        # SAP IQ aceita TDS — usa mssql+pymssql como transport
+        url = (f"mssql+pymssql://{_MSSQL_USER}:{pw}"
                f"@{_MSSQL_HOST}:{_MSSQL_PORT}/{_MSSQL_DB}")
         import socket
         socket.setdefaulttimeout(10)   # timeout TCP de 10s (evita travar 60s)
