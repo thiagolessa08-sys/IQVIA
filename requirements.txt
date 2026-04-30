@@ -1,3 +1,4 @@
+# SQL Server driver — force rebuild 2026-04-30
 flask==3.1.0
 requests==2.32.3
 gunicorn==23.0.0

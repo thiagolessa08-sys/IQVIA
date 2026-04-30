@@ -27,7 +27,13 @@ def get_engine():
         pw  = quote_plus(_MSSQL_PASS)
         url = (f"mssql+pymssql://{_MSSQL_USER}:{pw}"
                f"@{_MSSQL_HOST}:{_MSSQL_PORT}/{_MSSQL_DB}")
-        _engine = create_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=10)
+        _engine = create_engine(
+            url,
+            pool_pre_ping=False,           # evita ping extra no startup
+            pool_size=5,
+            max_overflow=10,
+            connect_args={"timeout": 8},   # timeout de 8s por tentativa
+        )
     return _engine
 
 # Tabela real no banco SQL Server
@@ -205,7 +211,8 @@ def ensure_indexes():
 
 try:
     init_prescricoes()
-    ensure_indexes()
+    # ensure_indexes() não roda no startup para não bloquear o healthcheck;
+    # é chamado automaticamente após o primeiro upload de dados.
 except Exception as e:
     print(f"[init] Aviso: {e}")
 
