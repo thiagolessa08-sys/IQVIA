@@ -17,7 +17,7 @@ _MSSQL_PASS = os.environ.get("MSSQL_PASS", "i@sql2025HML")
 _MSSQL_DB   = os.environ.get("MSSQL_DB",   "IQHML")
 USE_MSSQL   = bool(_MSSQL_HOST and _MSSQL_USER)
 
-# ── DB Layer (SQLAlchemy + pymssql — SQL Server) ──────────────────────────
+# ── DB Layer (SQLAlchemy + pymssql — SAP IQ / Sybase IQ) ─────────────────
 _engine      = None
 _CA_CERT_PATH = None   # preenchido por _setup_mssql_ssl()
 
@@ -40,12 +40,12 @@ def _setup_mssql_ssl():
                 f.write(certificate.public_bytes(Encoding.PEM))
             for c in (extra or []):
                 f.write(c.public_bytes(Encoding.PEM))
-        # Cria freetds.conf apontando para o cert
+        # Cria freetds.conf para SAP IQ (TDS 5.0 = Sybase)
         freetds_conf = (
             f"[{_MSSQL_HOST}]\n"
             f"    host = {_MSSQL_HOST}\n"
             f"    port = {_MSSQL_PORT}\n"
-            f"    tds version = 7.4\n"
+            f"    tds version = 5.0\n"
             f"    ssl = yes\n"
             f"    ca file = {ca_path}\n"
         )
@@ -66,7 +66,8 @@ def get_engine():
             _setup_mssql_ssl()
         from urllib.parse import quote_plus
         pw  = quote_plus(_MSSQL_PASS)
-        url = (f"mssql+pymssql://{_MSSQL_USER}:{pw}"
+        # SAP IQ usa protocolo Sybase (TDS 5.0) via pymssql
+        url = (f"sybase+pymssql://{_MSSQL_USER}:{pw}"
                f"@{_MSSQL_HOST}:{_MSSQL_PORT}/{_MSSQL_DB}")
         import socket
         socket.setdefaulttimeout(10)   # timeout TCP de 10s (evita travar 60s)

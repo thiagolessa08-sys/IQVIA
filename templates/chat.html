@@ -489,7 +489,7 @@ function showTyping(){appendMsg('ai','',true);}
 function hideTyping(){const el=document.getElementById('typingMsg');if(el)el.remove();}
 
 function buildSystemPrompt(){
-  return `Você é analista especializado em dados de prescrições farmacêuticas. Você tem acesso DIRETO à tabela qqhetl.PBS_AI_ANALYTICS no SQL Server com os seguintes campos:
+  return `Você é analista especializado em dados de prescrições farmacêuticas. Você tem acesso DIRETO à tabela qqhetl.PBS_AI_ANALYTICS no SAP IQ (Sybase IQ) com os seguintes campos:
 - crm: código do médico prescritor
 - medico: nome do médico
 - periodo: período no formato YYYYMM (ex: 202601 = Jan/2026)
@@ -506,7 +506,7 @@ function buildSystemPrompt(){
 REGRAS:
 - Responda em português, técnico e claro. Máximo 3 parágrafos.
 - NUNCA diga que não tem dados — consulte o banco.
-- Use TOP n (não LIMIT n) nas queries SQL Server. Ex: SELECT TOP 10 ...
+- Use TOP n nas queries SAP IQ. Ex: SELECT TOP 10 ...
 - SEMPRE inclua um gráfico quando a resposta envolver comparação, ranking ou evolução temporal.
 
 TIPOS DE GRÁFICO:
