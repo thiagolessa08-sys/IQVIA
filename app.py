@@ -12,13 +12,42 @@ app.config["MAX_CONTENT_LENGTH"] = 300 * 1024 * 1024  # 300 MB
 DB_PATH = os.path.join(os.path.dirname(__file__), "data", "iqvia.db")
 
 # ── DB Layer (HTTP API → claude.sqltech.com.br/execute) ──────────────────
-# O middleware exige x-api-key de quem o chama, e injeta sua própria chave
-# ao repassar internamente ao FortiGate/SAP IQ.
 _DB_HOST     = os.environ.get("DATABASE_HOST", "claude.sqltech.com.br")
 _DB_PORT     = int(os.environ.get("DATABASE_PORT", "443"))
-_DB_API_KEY  = os.environ.get("API_KEY", "")          # definir no Railway
+_DB_API_KEY  = os.environ.get("API_KEY", "")
 _DB_API_BASE = f"https://{_DB_HOST}:{_DB_PORT}"
-USE_HTTP_API = bool(_DB_HOST)   # ativo sempre que o host estiver definido
+USE_HTTP_API = bool(_DB_HOST)
+
+# Certificado de cliente mTLS (sqltech.pfx, senha 1234)
+_PFX_PATH    = os.path.join(os.path.dirname(__file__), "sqltech.pfx")
+_PFX_PASS    = os.environ.get("PFX_PASSWORD", "1234").encode()
+_CLIENT_CERT = None   # tuple (cert_pem_path, key_pem_path) — preenchido no startup
+
+def _load_client_cert():
+    """Extrai cert+key do .pfx e grava em arquivos .pem temporários."""
+    global _CLIENT_CERT
+    if not os.path.exists(_PFX_PATH):
+        print(f"[ssl] {_PFX_PATH} não encontrado — mTLS desativado.")
+        return
+    try:
+        from cryptography.hazmat.primitives.serialization import pkcs12, Encoding, PrivateFormat, NoEncryption
+        with open(_PFX_PATH, "rb") as f:
+            pfx_data = f.read()
+        key, cert, _ = pkcs12.load_key_and_certificates(pfx_data, _PFX_PASS)
+        data_dir = os.path.join(os.path.dirname(__file__), "data")
+        os.makedirs(data_dir, exist_ok=True)
+        cert_path = os.path.join(data_dir, "_client.crt")
+        key_path  = os.path.join(data_dir, "_client.key")
+        with open(cert_path, "wb") as f:
+            f.write(cert.public_bytes(Encoding.PEM))
+        with open(key_path, "wb") as f:
+            f.write(key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()))
+        _CLIENT_CERT = (cert_path, key_path)
+        print(f"[ssl] Certificado de cliente carregado: {cert.subject}")
+    except Exception as e:
+        print(f"[ssl] Erro ao carregar certificado: {e}")
+
+_load_client_cert()
 
 # Tabela real no SAP IQ
 TABLE_PRESC = os.environ.get("TABLE_PRESC", "qqhetl.PBS_AI_ANALYTICS")
@@ -48,7 +77,7 @@ def _inline_params(sql, params):
     return sql
 
 def _api_call(sql):
-    """Envia SQL à API HTTP e retorna lista de dicts."""
+    """Envia SQL à API HTTP com certificado de cliente mTLS."""
     hdrs = {"Content-Type": "application/json"}
     if _DB_API_KEY:
         hdrs["x-api-key"] = _DB_API_KEY
@@ -56,7 +85,8 @@ def _api_call(sql):
         f"{_DB_API_BASE}/execute",
         json={"sql": sql},
         headers=hdrs,
-        verify=False,   # cert GoDaddy — evita erro de CA chain no Railway
+        cert=_CLIENT_CERT,  # mTLS: apresenta sqltech.pfx como cliente
+        verify=False,        # não valida CA chain do servidor
         timeout=30
     )
     resp.raise_for_status()
