@@ -68,12 +68,14 @@ def get_engine():
         pw  = quote_plus(_MSSQL_PASS)
         url = (f"mssql+pymssql://{_MSSQL_USER}:{pw}"
                f"@{_MSSQL_HOST}:{_MSSQL_PORT}/{_MSSQL_DB}")
+        import socket
+        socket.setdefaulttimeout(10)   # timeout TCP de 10s (evita travar 60s)
         _engine = create_engine(
             url,
             pool_pre_ping=False,
-            pool_size=5,
-            max_overflow=10,
-            connect_args={"timeout": 8},
+            pool_size=3,
+            max_overflow=5,
+            connect_args={"timeout": 10, "login_timeout": 10},
         )
     return _engine
 
