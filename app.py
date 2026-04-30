@@ -11,7 +11,7 @@ app.config["MAX_CONTENT_LENGTH"] = 300 * 1024 * 1024  # 300 MB
 DB_PATH = os.path.join(os.path.dirname(__file__), "data", "iqvia.db")
 
 _MSSQL_HOST = os.environ.get("MSSQL_HOST", "claude.sqltech.com.br")
-_MSSQL_PORT = int(os.environ.get("MSSQL_PORT", "2626"))
+_MSSQL_PORT = int(os.environ.get("MSSQL_PORT", "443"))
 _MSSQL_USER = os.environ.get("MSSQL_USER", "iaapi")
 _MSSQL_PASS = os.environ.get("MSSQL_PASS", "i@sql2025HML")
 _MSSQL_DB   = os.environ.get("MSSQL_DB",   "IQHML")
