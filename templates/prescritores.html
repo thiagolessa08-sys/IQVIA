@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1440">
-<title>Prescritores — IQVIA</title>
+<title>Prescritores — Pharma Analytics</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -36,8 +36,7 @@
   /* SIDEBAR */
   .sidebar{background:var(--surface);border-right:1px solid var(--line);padding:26px 20px 20px;display:flex;flex-direction:column;gap:24px;position:sticky;top:0;height:100vh;overflow-y:auto;}
   .brand{padding:0 8px 4px;}
-  .brand-name{font-family:'Instrument Serif',serif;font-size:32px;font-style:italic;color:var(--blue);letter-spacing:-0.01em;line-height:1;}
-  .brand-tag{font-size:11px;color:var(--ink-3);font-weight:600;letter-spacing:0.1em;text-transform:uppercase;margin-top:2px;}
+  .brand-name{font-family:'Instrument Serif',serif;font-size:26px;font-style:italic;color:var(--blue);letter-spacing:-0.02em;line-height:1.15;text-align:center;}
   .nav-label{font-size:11px;letter-spacing:.14em;color:var(--ink-3);font-weight:600;padding:0 12px;text-transform:uppercase;margin-bottom:6px;}
   .nav{display:flex;flex-direction:column;gap:2px;}
   .nav a{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;color:var(--ink-2);text-decoration:none;font-size:14px;font-weight:500;transition:all .15s;cursor:pointer;}
@@ -198,8 +197,7 @@
   #pageLoader{position:fixed;inset:0;z-index:9999;background:rgba(255,255,255,.55);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity .45s ease,visibility .45s ease;}
   [data-theme="dark"] #pageLoader{background:rgba(22,28,40,.60);}
   #pageLoader.hidden{opacity:0;visibility:hidden;pointer-events:none;}
-  .loader-brand{font-family:'Instrument Serif',serif;font-size:48px;font-style:italic;color:var(--blue);letter-spacing:-0.02em;line-height:1;}
-  .loader-tag{font-size:11px;font-weight:700;color:var(--ink-3);letter-spacing:.14em;text-transform:uppercase;margin-top:-12px;}
+  .loader-brand{font-family:'Instrument Serif',serif;font-size:42px;font-style:italic;color:var(--blue);letter-spacing:-0.02em;line-height:1;}
   .loader-ring{width:40px;height:40px;border:3px solid var(--line-2);border-top-color:var(--blue);border-radius:50%;animation:spin .75s linear infinite;margin-top:8px;}
   .loader-txt{font-size:13px;color:var(--ink-3);font-weight:500;}
 </style>
@@ -208,8 +206,7 @@
 
 <!-- LOADING OVERLAY -->
 <div id="pageLoader">
-  <div class="loader-brand">IQVIA</div>
-  <div class="loader-tag">Pharma Analytics</div>
+  <div class="loader-brand">Pharma Analytics</div>
   <div class="loader-ring"></div>
   <div class="loader-txt">Carregando dados…</div>
 </div>
@@ -219,8 +216,7 @@
 <!-- SIDEBAR -->
 <aside class="sidebar">
   <div class="brand">
-    <div class="brand-name">IQVIA</div>
-    <div class="brand-tag">Pharma Analytics</div>
+    <div class="brand-name">Pharma<br>Analytics</div>
   </div>
   <div>
     <div class="nav-label">Análises</div>
@@ -286,7 +282,7 @@
           <div class="avatar" id="userAvatar">U</div>
           <div class="user-info">
             <div class="uname" id="userName">Usuário</div>
-            <div class="umail">IQVIA Analytics</div>
+            <div class="umail">Pharma Analytics</div>
           </div>
         </div>
       </div>
