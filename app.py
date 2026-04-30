@@ -679,6 +679,59 @@ def debug():
         result["error"] = str(e)
     return jsonify(result)
 
+@app.route("/api/test-db")
+def test_db():
+    """Testa a conexão com o SQL Server e retorna diagnóstico completo."""
+    import time
+    result = {
+        "config": {
+            "host":     _MSSQL_HOST,
+            "port":     _MSSQL_PORT,
+            "database": _MSSQL_DB,
+            "user":     _MSSQL_USER,
+            "table":    TABLE_PRESC,
+            "ssl_cert": _CA_CERT_PATH or "não configurado",
+        },
+        "steps": {}
+    }
+
+    # 1. Conexão
+    t0 = time.time()
+    try:
+        with get_engine().connect() as conn:
+            conn.execute(text("SELECT 1"))
+        result["steps"]["1_conexao"] = {"ok": True, "ms": round((time.time()-t0)*1000)}
+    except Exception as e:
+        result["steps"]["1_conexao"] = {"ok": False, "erro": str(e), "ms": round((time.time()-t0)*1000)}
+        return jsonify(result)
+
+    # 2. Tabela existe?
+    t0 = time.time()
+    try:
+        existe = table_exists("prescricoes")
+        result["steps"]["2_tabela"] = {"ok": existe, "ms": round((time.time()-t0)*1000)}
+    except Exception as e:
+        result["steps"]["2_tabela"] = {"ok": False, "erro": str(e)}
+
+    # 3. Contagem de linhas
+    t0 = time.time()
+    try:
+        r = query(f"SELECT COUNT(*) AS cnt FROM {TABLE_PRESC}")
+        result["steps"]["3_contagem"] = {"ok": True, "total_linhas": r[0]["cnt"], "ms": round((time.time()-t0)*1000)}
+    except Exception as e:
+        result["steps"]["3_contagem"] = {"ok": False, "erro": str(e)}
+
+    # 4. Amostra de colunas (TOP 1)
+    t0 = time.time()
+    try:
+        r = query(f"SELECT TOP 1 * FROM {TABLE_PRESC}")
+        result["steps"]["4_amostra"] = {"ok": True, "colunas": list(r[0].keys()) if r else [], "ms": round((time.time()-t0)*1000)}
+    except Exception as e:
+        result["steps"]["4_amostra"] = {"ok": False, "erro": str(e)}
+
+    result["status"] = "OK" if all(v.get("ok") for v in result["steps"].values()) else "PARCIAL"
+    return jsonify(result)
+
 # ── Pages ─────────────────────────────────────────────────────────────────
 @app.route("/")
 @login_required
