@@ -58,11 +58,12 @@ def _setup_mssql_ssl():
     except Exception as e:
         print(f"[ssl] Aviso ao configurar SSL: {e}")
 
-_setup_mssql_ssl()   # roda uma vez no startup
-
 def get_engine():
-    global _engine
+    global _engine, _CA_CERT_PATH
     if _engine is None:
+        # Configura SSL antes de criar o engine (lazy, não bloqueia startup)
+        if not _CA_CERT_PATH:
+            _setup_mssql_ssl()
         from urllib.parse import quote_plus
         pw  = quote_plus(_MSSQL_PASS)
         url = (f"mssql+pymssql://{_MSSQL_USER}:{pw}"
