@@ -3,88 +3,26 @@ from functools import wraps
 import sqlite3, os, requests, json, re, time
 from datetime import datetime
 import pandas as pd
-from sqlalchemy import create_engine, text
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "iqvia-pharma-2026-xK9m")
 app.config["MAX_CONTENT_LENGTH"] = 300 * 1024 * 1024  # 300 MB
 DB_PATH = os.path.join(os.path.dirname(__file__), "data", "iqvia.db")
 
-_MSSQL_HOST = os.environ.get("MSSQL_HOST", "claude.sqltech.com.br")
-_MSSQL_PORT = int(os.environ.get("MSSQL_PORT", "443"))
-_MSSQL_USER = os.environ.get("MSSQL_USER", "iaapi")
-_MSSQL_PASS = os.environ.get("MSSQL_PASS", "i@sql2025HML")
-_MSSQL_DB   = os.environ.get("MSSQL_DB",   "IQHML")
-USE_MSSQL   = bool(_MSSQL_HOST and _MSSQL_USER)
+# ── DB Layer (HTTP API → claude.sqltech.com.br/execute) ──────────────────
+_DB_HOST    = os.environ.get("DATABASE_HOST", "claude.sqltech.com.br")
+_DB_PORT    = int(os.environ.get("DATABASE_PORT", "443"))
+_DB_API_KEY = os.environ.get("API_KEY", "")
+_DB_API_BASE = f"https://{_DB_HOST}:{_DB_PORT}"
+USE_HTTP_API = bool(_DB_HOST and _DB_API_KEY)
 
-# ── DB Layer (SQLAlchemy + pymssql — SAP IQ / Sybase IQ) ─────────────────
-_engine      = None
-_CA_CERT_PATH = None   # preenchido por _setup_mssql_ssl()
-
-def _setup_mssql_ssl():
-    """Decodifica o PFX (env MSSQL_CERT_B64) e configura FreeTDS para SSL."""
-    global _CA_CERT_PATH
-    cert_b64  = os.environ.get("MSSQL_CERT_B64", "")
-    cert_pass = os.environ.get("MSSQL_CERT_PASS", "1234").encode()
-    if not cert_b64:
-        return
-    try:
-        import base64
-        from cryptography.hazmat.primitives.serialization import pkcs12, Encoding
-        pfx_data = base64.b64decode(cert_b64)
-        _, certificate, extra = pkcs12.load_key_and_certificates(pfx_data, cert_pass)
-        # Grava cadeia de certificados em PEM
-        ca_path = "/tmp/sqltech_ca.pem"
-        with open(ca_path, "wb") as f:
-            if certificate:
-                f.write(certificate.public_bytes(Encoding.PEM))
-            for c in (extra or []):
-                f.write(c.public_bytes(Encoding.PEM))
-        # Cria freetds.conf para SAP IQ (TDS 5.0 = Sybase)
-        freetds_conf = (
-            f"[{_MSSQL_HOST}]\n"
-            f"    host = {_MSSQL_HOST}\n"
-            f"    port = {_MSSQL_PORT}\n"
-            f"    tds version = 5.0\n"
-            f"    ssl = yes\n"
-            f"    ca file = {ca_path}\n"
-        )
-        freetds_path = "/tmp/freetds.conf"
-        with open(freetds_path, "w") as f:
-            f.write(freetds_conf)
-        os.environ["FREETDSCONF"] = freetds_path
-        _CA_CERT_PATH = ca_path
-        print(f"[ssl] Certificado configurado em {ca_path}")
-    except Exception as e:
-        print(f"[ssl] Aviso ao configurar SSL: {e}")
-
-def get_engine():
-    global _engine, _CA_CERT_PATH
-    if _engine is None:
-        # Configura SSL antes de criar o engine (lazy, não bloqueia startup)
-        if not _CA_CERT_PATH:
-            _setup_mssql_ssl()
-        from urllib.parse import quote_plus
-        pw  = quote_plus(_MSSQL_PASS)
-        # SAP IQ aceita TDS — usa mssql+pymssql como transport
-        url = (f"mssql+pymssql://{_MSSQL_USER}:{pw}"
-               f"@{_MSSQL_HOST}:{_MSSQL_PORT}/{_MSSQL_DB}")
-        import socket
-        socket.setdefaulttimeout(10)   # timeout TCP de 10s (evita travar 60s)
-        _engine = create_engine(
-            url,
-            pool_pre_ping=False,
-            pool_size=3,
-            max_overflow=5,
-            connect_args={"timeout": 10, "login_timeout": 10},
-        )
-    return _engine
-
-# Tabela real no banco SQL Server
+# Tabela real no SAP IQ
 TABLE_PRESC = os.environ.get("TABLE_PRESC", "qqhetl.PBS_AI_ANALYTICS")
 
 def adapt_sql(sql):
-    """Redireciona 'prescricoes' para a tabela real e converte LIMIT→TOP."""
+    """Redireciona 'prescricoes' → tabela real e converte LIMIT→TOP."""
     sql = re.sub(r'\bprescricoes\b', TABLE_PRESC, sql)
     m = re.search(r'\bLIMIT\s+(\d+)\s*;?\s*$', sql.strip(), re.IGNORECASE)
     if m:
@@ -93,20 +31,42 @@ def adapt_sql(sql):
         sql = re.sub(r'^(\s*SELECT\s)', f'SELECT TOP {n} ', sql, flags=re.IGNORECASE, count=1)
     return sql
 
-def _to_named(sql, params):
-    named_sql, named_params = sql, {}
-    for i, p in enumerate(params):
-        named_sql = named_sql.replace("?", f":p{i}", 1)
-        named_params[f"p{i}"] = p
-    return named_sql, named_params
+def _inline_params(sql, params):
+    """Substitui ? pelos valores de forma segura para envio via API."""
+    for p in params:
+        if p is None:
+            val = "NULL"
+        elif isinstance(p, str):
+            val = "'" + p.replace("'", "''") + "'"
+        elif isinstance(p, (int, float)):
+            val = str(p)
+        else:
+            val = "'" + str(p).replace("'", "''") + "'"
+        sql = sql.replace("?", val, 1)
+    return sql
+
+def _api_call(sql):
+    """Envia SQL à API HTTP e retorna lista de dicts."""
+    resp = requests.post(
+        f"{_DB_API_BASE}/execute",
+        json={"sql": sql},
+        headers={"x-api-key": _DB_API_KEY, "Content-Type": "application/json"},
+        verify=False,   # cert GoDaddy válido mas evita problemas de CA chain
+        timeout=30
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    if isinstance(data, list):
+        return data
+    for key in ("rows", "data", "results", "result"):
+        if isinstance(data.get(key), list):
+            return data[key]
+    return []
 
 def query(sql, params=()):
-    if USE_MSSQL:
-        sql = adapt_sql(sql)
-        named_sql, named_params = _to_named(sql, params)
-        with get_engine().connect() as conn:
-            result = conn.execute(text(named_sql), named_params)
-            return [dict(r._mapping) for r in result.fetchall()]
+    if USE_HTTP_API:
+        final = adapt_sql(_inline_params(sql, params))
+        return _api_call(final)
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
     cur = con.execute(sql, params)
@@ -115,12 +75,9 @@ def query(sql, params=()):
     return rows
 
 def execute(sql, params=()):
-    if USE_MSSQL:
-        sql = adapt_sql(sql)
-        named_sql, named_params = _to_named(sql, params)
-        with get_engine().connect() as conn:
-            conn.execute(text(named_sql), named_params)
-            conn.commit()
+    if USE_HTTP_API:
+        final = adapt_sql(_inline_params(sql, params))
+        _api_call(final)
         return
     con = sqlite3.connect(DB_PATH)
     con.execute(sql, params)
@@ -128,23 +85,24 @@ def execute(sql, params=()):
     con.close()
 
 def table_exists(name):
-    if USE_MSSQL:
-        # Verifica a tabela real (ignora o argumento 'name' no modo MSSQL)
-        rows = query(
-            "SELECT COUNT(*) AS ex FROM information_schema.tables "
-            "WHERE table_schema='qqhetl' AND table_name='PBS_AI_ANALYTICS'")
-        return bool(rows[0]["ex"])
+    if USE_HTTP_API:
+        try:
+            rows = query(
+                "SELECT COUNT(*) AS ex FROM information_schema.tables "
+                "WHERE table_schema='qqhetl' AND table_name='PBS_AI_ANALYTICS'")
+            return bool(rows[0].get("ex", 0))
+        except Exception:
+            return True  # assume existente
     rows = query("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (name,))
     return bool(rows)
 
 def _df_to_table(df, table_name):
-    if USE_MSSQL:
-        df.to_sql("PBS_AI_ANALYTICS", get_engine(), schema="qqhetl",
-                  if_exists="replace", index=False, chunksize=5000)
-    else:
-        con = sqlite3.connect(DB_PATH)
-        df.to_sql(table_name, con, if_exists="replace", index=False)
-        con.close()
+    if USE_HTTP_API:
+        print("[warn] Upload via API HTTP não suportado — operação ignorada.")
+        return
+    con = sqlite3.connect(DB_PATH)
+    df.to_sql(table_name, con, if_exists="replace", index=False)
+    con.close()
 
 # ── Cache simples em memória (TTL) ───────────────────────────────────────
 _cache = {}
@@ -203,8 +161,8 @@ PRESCRICOES_CSV = os.path.join(os.path.dirname(__file__), "data", "prescricoes.c
 os.makedirs(os.path.join(os.path.dirname(__file__), "data"), exist_ok=True)
 
 def init_prescricoes():
-    if USE_MSSQL:
-        print(f"[init] Modo SQL Server — usando tabela {TABLE_PRESC}.")
+    if USE_HTTP_API:
+        print(f"[init] Modo HTTP API — usando tabela {TABLE_PRESC} via claude.sqltech.com.br.")
         return
     if table_exists("prescricoes"):
         print("[init] Tabela prescricoes já existe.")
@@ -229,29 +187,8 @@ def init_prescricoes():
     print(f"[init] {len(df)} linhas carregadas.")
 
 def ensure_indexes():
-    if not USE_MSSQL:
-        return
-    T = TABLE_PRESC
-    idxs = [
-        ("idx_pbs_molecula",    f"{T}(molecula)"),
-        ("idx_pbs_laboratorio", f"{T}(laboratorio)"),
-        ("idx_pbs_estado",      f"{T}(estado)"),
-        ("idx_pbs_periodo",     f"{T}(periodo)"),
-        ("idx_pbs_crm",         f"{T}(crm)"),
-        ("idx_pbs_marca",       f"{T}(marca)"),
-    ]
-    for name, cols in idxs:
-        try:
-            with get_engine().connect() as conn:
-                exists = conn.execute(text(
-                    "SELECT 1 FROM sys.indexes "
-                    f"WHERE name=:n AND object_id=OBJECT_ID('{T}')"
-                ), {"n": name}).fetchone()
-                if not exists:
-                    conn.execute(text(f"CREATE INDEX {name} ON {cols}"))
-                    conn.commit()
-        except Exception:
-            pass
+    # Via HTTP API não gerenciamos índices localmente; SAP IQ já tem seus próprios.
+    pass
 
 try:
     init_prescricoes()
@@ -664,12 +601,11 @@ def admin_load_post():
 @app.route("/api/debug")
 def debug():
     result = {
-        "use_mssql":   USE_MSSQL,
-        "mssql_host":  _MSSQL_HOST,
-        "mssql_port":  _MSSQL_PORT,
-        "mssql_user":  _MSSQL_USER,
-        "mssql_db":    _MSSQL_DB,
-        "ssl_cert":    _CA_CERT_PATH or "não configurado",
+        "use_http_api": USE_HTTP_API,
+        "api_host":     _DB_HOST,
+        "api_port":     _DB_PORT,
+        "api_key_set":  bool(_DB_API_KEY),
+        "table":        TABLE_PRESC,
         "table_prescricoes": False,
         "row_count": 0,
         "error": None
@@ -685,28 +621,31 @@ def debug():
 
 @app.route("/api/test-db")
 def test_db():
-    """Testa a conexão com o SQL Server e retorna diagnóstico completo."""
+    """Testa a conexão com a API HTTP (claude.sqltech.com.br) e retorna diagnóstico."""
     import time
     result = {
         "config": {
-            "host":     _MSSQL_HOST,
-            "port":     _MSSQL_PORT,
-            "database": _MSSQL_DB,
-            "user":     _MSSQL_USER,
-            "table":    TABLE_PRESC,
-            "ssl_cert": _CA_CERT_PATH or "não configurado",
+            "api_base":    _DB_API_BASE,
+            "api_key_set": bool(_DB_API_KEY),
+            "use_http_api": USE_HTTP_API,
+            "table":        TABLE_PRESC,
         },
         "steps": {}
     }
 
-    # 1. Conexão
+    if not USE_HTTP_API:
+        result["steps"]["0_config"] = {"ok": False, "erro": "API_KEY não configurada — defina a variável de ambiente API_KEY no Railway."}
+        result["status"] = "SEM_CONFIG"
+        return jsonify(result)
+
+    # 1. Ping via SELECT 1
     t0 = time.time()
     try:
-        with get_engine().connect() as conn:
-            conn.execute(text("SELECT 1"))
-        result["steps"]["1_conexao"] = {"ok": True, "ms": round((time.time()-t0)*1000)}
+        rows = _api_call("SELECT 1 AS ping")
+        result["steps"]["1_ping"] = {"ok": True, "resposta": rows, "ms": round((time.time()-t0)*1000)}
     except Exception as e:
-        result["steps"]["1_conexao"] = {"ok": False, "erro": str(e), "ms": round((time.time()-t0)*1000)}
+        result["steps"]["1_ping"] = {"ok": False, "erro": str(e), "ms": round((time.time()-t0)*1000)}
+        result["status"] = "FALHOU"
         return jsonify(result)
 
     # 2. Tabela existe?
