@@ -3,5 +3,5 @@ requests==2.32.3
 gunicorn==23.0.0
 pandas==2.2.3
 openpyxl==3.1.5
-pg8000==1.31.2
+pymssql==2.3.1
 sqlalchemy==2.0.36

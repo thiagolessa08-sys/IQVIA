@@ -10,28 +10,34 @@ app.secret_key = os.environ.get("SECRET_KEY", "iqvia-pharma-2026-xK9m")
 app.config["MAX_CONTENT_LENGTH"] = 300 * 1024 * 1024  # 300 MB
 DB_PATH = os.path.join(os.path.dirname(__file__), "data", "iqvia.db")
 
-_h  = os.environ.get("PGHOST", "")
-_p  = os.environ.get("PGPORT", "5432")
-_u  = os.environ.get("PGUSER", "")
-_pw = os.environ.get("PGPASSWORD", "")
-_db = os.environ.get("PGDATABASE", "")
-if _h and _u:
-    DATABASE_URL = f"postgresql://{_u}:{_pw}@{_h}:{_p}/{_db}"
-else:
-    DATABASE_URL = os.environ.get("DATABASE_URL", "")
-USE_POSTGRES = DATABASE_URL.startswith(("postgresql://", "postgres://"))
+_MSSQL_HOST = os.environ.get("MSSQL_HOST", "172.18.100.20")
+_MSSQL_PORT = int(os.environ.get("MSSQL_PORT", "2626"))
+_MSSQL_USER = os.environ.get("MSSQL_USER", "iaapi")
+_MSSQL_PASS = os.environ.get("MSSQL_PASS", "i@sql2025HML")
+_MSSQL_DB   = os.environ.get("MSSQL_DB",   "IQHML")
+USE_MSSQL   = bool(_MSSQL_HOST and _MSSQL_USER)
 
-# ── DB Layer (SQLAlchemy + pg8000, sem dependência de libpq) ──────────────
+# ── DB Layer (SQLAlchemy + pymssql — SQL Server) ──────────────────────────
 _engine = None
 
 def get_engine():
     global _engine
     if _engine is None:
-        url = DATABASE_URL
-        url = url.replace("postgres://", "postgresql+pg8000://", 1)
-        url = url.replace("postgresql://", "postgresql+pg8000://", 1)
-        _engine = create_engine(url, pool_pre_ping=True)
+        from urllib.parse import quote_plus
+        pw  = quote_plus(_MSSQL_PASS)
+        url = (f"mssql+pymssql://{_MSSQL_USER}:{pw}"
+               f"@{_MSSQL_HOST}:{_MSSQL_PORT}/{_MSSQL_DB}")
+        _engine = create_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=10)
     return _engine
+
+def adapt_sql(sql):
+    """Converte LIMIT n (PostgreSQL) → TOP n (SQL Server)."""
+    m = re.search(r'\bLIMIT\s+(\d+)\s*;?\s*$', sql.strip(), re.IGNORECASE)
+    if m:
+        n   = m.group(1)
+        sql = re.sub(r'\bLIMIT\s+\d+\s*;?\s*$', '', sql.strip(), flags=re.IGNORECASE).rstrip()
+        sql = re.sub(r'^(\s*SELECT\s)', f'SELECT TOP {n} ', sql, flags=re.IGNORECASE, count=1)
+    return sql
 
 def _to_named(sql, params):
     named_sql, named_params = sql, {}
@@ -41,7 +47,8 @@ def _to_named(sql, params):
     return named_sql, named_params
 
 def query(sql, params=()):
-    if USE_POSTGRES:
+    if USE_MSSQL:
+        sql = adapt_sql(sql)
         named_sql, named_params = _to_named(sql, params)
         with get_engine().connect() as conn:
             result = conn.execute(text(named_sql), named_params)
@@ -54,7 +61,8 @@ def query(sql, params=()):
     return rows
 
 def execute(sql, params=()):
-    if USE_POSTGRES:
+    if USE_MSSQL:
+        sql = adapt_sql(sql)
         named_sql, named_params = _to_named(sql, params)
         with get_engine().connect() as conn:
             conn.execute(text(named_sql), named_params)
@@ -66,14 +74,16 @@ def execute(sql, params=()):
     con.close()
 
 def table_exists(name):
-    if USE_POSTGRES:
-        rows = query("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name=?) AS ex", (name,))
+    if USE_MSSQL:
+        rows = query(
+            "SELECT COUNT(*) AS ex FROM information_schema.tables "
+            "WHERE table_name=?", (name,))
         return bool(rows[0]["ex"])
     rows = query("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (name,))
     return bool(rows)
 
 def _df_to_table(df, table_name):
-    if USE_POSTGRES:
+    if USE_MSSQL:
         df.to_sql(table_name, get_engine(), if_exists="replace", index=False, chunksize=5000)
     else:
         con = sqlite3.connect(DB_PATH)
@@ -160,7 +170,7 @@ def init_prescricoes():
     print(f"[init] {len(df)} linhas carregadas.")
 
 def ensure_indexes():
-    if not USE_POSTGRES:
+    if not USE_MSSQL:
         return
     idxs = [
         ("idx_presc_molecula",    "prescricoes(molecula)"),
@@ -173,8 +183,13 @@ def ensure_indexes():
     for name, cols in idxs:
         try:
             with get_engine().connect() as conn:
-                conn.execute(text(f"CREATE INDEX IF NOT EXISTS {name} ON {cols}"))
-                conn.commit()
+                exists = conn.execute(text(
+                    "SELECT 1 FROM sys.indexes "
+                    "WHERE name=:n AND object_id=OBJECT_ID('prescricoes')"
+                ), {"n": name}).fetchone()
+                if not exists:
+                    conn.execute(text(f"CREATE INDEX {name} ON {cols}"))
+                    conn.commit()
         except Exception:
             pass
 
@@ -463,8 +478,11 @@ def safe_sql(sql):
     for kw in ["DROP","DELETE","UPDATE","INSERT","CREATE","ALTER","ATTACH","DETACH","PRAGMA"]:
         if re.search(r'\b' + kw + r'\b', s_up):
             raise ValueError(f"Operação não permitida: {kw}")
-    if "LIMIT" not in s_up:
-        s = s.rstrip(";") + " LIMIT 100"
+    # Garante limite de linhas (LIMIT → TOP para SQL Server)
+    if "LIMIT" in s_up:
+        s = adapt_sql(s)
+    elif "TOP" not in s_up:
+        s = re.sub(r'^(\s*SELECT\s)', 'SELECT TOP 100 ', s, flags=re.IGNORECASE, count=1)
     return query(s)
 
 @app.route("/api/chat", methods=["POST"])
@@ -478,7 +496,8 @@ def chat():
     query_tool = {
         "name": "query_database",
         "description": (
-            "Executa SQL SELECT na tabela prescricoes. "
+            "Executa SQL SELECT na tabela prescricoes (SQL Server). "
+            "Use TOP n em vez de LIMIT n. "
             "Colunas: crm, medico, periodo (YYYYMM), canal, brick, cidade, estado, "
             "laboratorio, marca, molecula, qtde_med (qtde medicamentos), qtde_rec (qtde receitas)."
         ),
@@ -584,13 +603,11 @@ def admin_load_post():
 @app.route("/api/debug")
 def debug():
     result = {
-        "use_postgres": USE_POSTGRES,
-        "database_url_set": bool(os.environ.get("DATABASE_URL")),
-        "database_url_preview": (DATABASE_URL[:40] + "...") if len(DATABASE_URL) > 40 else DATABASE_URL,
-        "pghost": os.environ.get("PGHOST", ""),
-        "pgport": os.environ.get("PGPORT", ""),
-        "pguser": os.environ.get("PGUSER", ""),
-        "pgdatabase": os.environ.get("PGDATABASE", ""),
+        "use_mssql": USE_MSSQL,
+        "mssql_host": _MSSQL_HOST,
+        "mssql_port": _MSSQL_PORT,
+        "mssql_user": _MSSQL_USER,
+        "mssql_db":   _MSSQL_DB,
         "table_prescricoes": False,
         "row_count": 0,
         "error": None
