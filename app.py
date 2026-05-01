@@ -14,7 +14,7 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "data", "iqvia.db")
 # ── DB Layer (HTTP API → claude.sqltech.com.br/execute) ──────────────────
 _DB_HOST     = os.environ.get("DATABASE_HOST", "claude.sqltech.com.br")
 _DB_PORT     = int(os.environ.get("DATABASE_PORT", "443"))
-_DB_API_KEY  = os.environ.get("API_KEY", "")
+_DB_API_KEY  = os.environ.get("SQLTECH_TOKEN", "")   # Railway: add SQLTECH_TOKEN variable
 _DB_API_BASE = f"https://{_DB_HOST}:{_DB_PORT}"
 USE_HTTP_API = bool(_DB_HOST)
 
