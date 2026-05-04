@@ -33,10 +33,13 @@ USE_HTTP_API = bool(_DB_HOST)
 # Certificado de cliente mTLS (sqlsrv50.pfx, senha 1234)
 _PFX_PATH    = os.path.join(os.path.dirname(__file__), "sqlsrv50.pfx")
 _PFX_PASS    = os.environ.get("PFX_PASSWORD", "1234").encode()
-_CLIENT_CERT = None
+_CLIENT_CERT = None   # (cert_pem, key_pem) para mTLS
+_CA_CERT     = None   # ca.pem para verificar servidor
 
 def _load_client_cert():
-    global _CLIENT_CERT
+    """Extrai cert+key do .pfx.
+    Tenta como certificado de cliente (mTLS) E como CA de servidor."""
+    global _CLIENT_CERT, _CA_CERT
     if not os.path.exists(_PFX_PATH):
         print(f"[ssl] {_PFX_PATH} não encontrado.")
         return
@@ -44,9 +47,11 @@ def _load_client_cert():
         from cryptography.hazmat.primitives.serialization import pkcs12, Encoding, PrivateFormat, NoEncryption
         with open(_PFX_PATH, "rb") as f:
             pfx_data = f.read()
-        key, cert, _ = pkcs12.load_key_and_certificates(pfx_data, _PFX_PASS)
+        key, cert, extras = pkcs12.load_key_and_certificates(pfx_data, _PFX_PASS)
         data_dir = os.path.join(os.path.dirname(__file__), "data")
         os.makedirs(data_dir, exist_ok=True)
+
+        # Salva cert + key para uso como certificado de cliente
         cert_path = os.path.join(data_dir, "_client.crt")
         key_path  = os.path.join(data_dir, "_client.key")
         with open(cert_path, "wb") as f:
@@ -54,6 +59,17 @@ def _load_client_cert():
         with open(key_path, "wb") as f:
             f.write(key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()))
         _CLIENT_CERT = (cert_path, key_path)
+
+        # Salva cert como CA para verificar o servidor
+        ca_path = os.path.join(data_dir, "_ca.pem")
+        with open(ca_path, "wb") as f:
+            f.write(cert.public_bytes(Encoding.PEM))
+            # inclui certificados extras da cadeia, se houver
+            if extras:
+                for c in extras:
+                    f.write(c.public_bytes(Encoding.PEM))
+        _CA_CERT = ca_path
+
         print(f"[ssl] Certificado carregado: {cert.subject}")
     except Exception as e:
         print(f"[ssl] Erro ao carregar certificado: {e}")
@@ -110,14 +126,15 @@ def _api_call(sql):
     hdrs = {"Content-Type": "application/json"}
     if _DB_API_KEY:
         hdrs["x-api-key"] = _DB_API_KEY
-    # cert mTLS só faz sentido em HTTPS; em HTTP puro (porta 3030) não usa
-    use_cert = _CLIENT_CERT if _DB_SCHEME == "https" else None
+    # Usa CA do pfx para verificar servidor; envia também como cert de cliente
+    use_verify = _CA_CERT if _CA_CERT else False
+    use_cert   = _CLIENT_CERT if _DB_SCHEME == "https" else None
     resp = requests.post(
         f"{_DB_API_BASE}/execute",
         json={"sql": sql},
         headers=hdrs,
         cert=use_cert,
-        verify=False,
+        verify=use_verify,
         timeout=30
     )
     resp.raise_for_status()
@@ -696,6 +713,7 @@ def test_db():
             "api_base":     _DB_API_BASE,
             "api_key_set":  bool(_DB_API_KEY),
             "cert_loaded":  _CLIENT_CERT is not None,
+            "ca_loaded":    _CA_CERT is not None,
             "cert_file":    "sqlsrv50.pfx",
             "table":        TABLE_PRESC,
         },
