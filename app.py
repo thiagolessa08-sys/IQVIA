@@ -22,13 +22,43 @@ _IQ_USER = os.environ.get("IQ_USER", "iaapi")
 _IQ_PASS = os.environ.get("IQ_PASSWORD", "i@sql2025HML")
 USE_DIRECT = False  # pymssql incompatível com SAP IQ — usar HTTP API
 
-# ── Modo B: HTTP API (claude.sqltech.com.br:443) ──────────────────────────
-_DB_HOST     = os.environ.get("DATABASE_HOST", "claude.sqltech.com.br")
+# ── Modo B: HTTP API (sqlsrv50.sqltech.com.br:443 via FortiGate) ─────────
+_DB_HOST     = os.environ.get("DATABASE_HOST", "sqlsrv50.sqltech.com.br")
 _DB_PORT     = int(os.environ.get("DATABASE_PORT", "443"))
 _DB_API_KEY  = os.environ.get("SQLTECH_TOKEN", "")
 _DB_SCHEME   = os.environ.get("DATABASE_SCHEME", "https")
 _DB_API_BASE = f"{_DB_SCHEME}://{_DB_HOST}:{_DB_PORT}"
 USE_HTTP_API = bool(_DB_HOST)
+
+# Certificado de cliente mTLS (sqlsrv50.pfx, senha 1234)
+_PFX_PATH    = os.path.join(os.path.dirname(__file__), "sqlsrv50.pfx")
+_PFX_PASS    = os.environ.get("PFX_PASSWORD", "1234").encode()
+_CLIENT_CERT = None
+
+def _load_client_cert():
+    global _CLIENT_CERT
+    if not os.path.exists(_PFX_PATH):
+        print(f"[ssl] {_PFX_PATH} não encontrado.")
+        return
+    try:
+        from cryptography.hazmat.primitives.serialization import pkcs12, Encoding, PrivateFormat, NoEncryption
+        with open(_PFX_PATH, "rb") as f:
+            pfx_data = f.read()
+        key, cert, _ = pkcs12.load_key_and_certificates(pfx_data, _PFX_PASS)
+        data_dir = os.path.join(os.path.dirname(__file__), "data")
+        os.makedirs(data_dir, exist_ok=True)
+        cert_path = os.path.join(data_dir, "_client.crt")
+        key_path  = os.path.join(data_dir, "_client.key")
+        with open(cert_path, "wb") as f:
+            f.write(cert.public_bytes(Encoding.PEM))
+        with open(key_path, "wb") as f:
+            f.write(key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()))
+        _CLIENT_CERT = (cert_path, key_path)
+        print(f"[ssl] Certificado carregado: {cert.subject}")
+    except Exception as e:
+        print(f"[ssl] Erro ao carregar certificado: {e}")
+
+_load_client_cert()
 
 def _direct_query(sql):
     """Conexão direta ao SAP IQ via pymssql (túnel TCP porta 3030)."""
