@@ -15,7 +15,7 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "data", "iqvia.db")
 _DB_HOST     = os.environ.get("DATABASE_HOST", "claude.sqltech.com.br")
 _DB_PORT     = int(os.environ.get("DATABASE_PORT", "3030"))
 _DB_API_KEY  = os.environ.get("SQLTECH_TOKEN", "")   # Railway: add SQLTECH_TOKEN variable
-_DB_SCHEME   = os.environ.get("DATABASE_SCHEME", "https")  # https mesmo na porta 3030
+_DB_SCHEME   = os.environ.get("DATABASE_SCHEME", "http")   # porta 3030 é HTTP puro
 _DB_API_BASE = f"{_DB_SCHEME}://{_DB_HOST}:{_DB_PORT}"
 USE_HTTP_API = bool(_DB_HOST)
 
@@ -78,16 +78,18 @@ def _inline_params(sql, params):
     return sql
 
 def _api_call(sql):
-    """Envia SQL à API HTTP com certificado de cliente mTLS."""
+    """Envia SQL à API HTTP e retorna lista de dicts."""
     hdrs = {"Content-Type": "application/json"}
     if _DB_API_KEY:
         hdrs["x-api-key"] = _DB_API_KEY
+    # cert mTLS só faz sentido em HTTPS; em HTTP puro (porta 3030) não usa
+    use_cert = _CLIENT_CERT if _DB_SCHEME == "https" else None
     resp = requests.post(
         f"{_DB_API_BASE}/execute",
         json={"sql": sql},
         headers=hdrs,
-        cert=_CLIENT_CERT,  # mTLS: apresenta sqltech.pfx como cliente
-        verify=False,        # não valida CA chain do servidor
+        cert=use_cert,
+        verify=False,
         timeout=30
     )
     resp.raise_for_status()
