@@ -693,10 +693,10 @@ def test_db():
     result = {
         "config": {
             "modo":         "direto_pymssql" if USE_DIRECT else ("http_api" if USE_HTTP_API else "sqlite"),
-            "iq_host":      _IQ_HOST,
-            "iq_port":      _IQ_PORT,
-            "iq_database":  _IQ_DB,
-            "iq_user":      _IQ_USER,
+            "api_base":     _DB_API_BASE,
+            "api_key_set":  bool(_DB_API_KEY),
+            "cert_loaded":  _CLIENT_CERT is not None,
+            "cert_file":    "sqlsrv50.pfx",
             "table":        TABLE_PRESC,
         },
         "steps": {}
