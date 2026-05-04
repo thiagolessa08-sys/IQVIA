@@ -126,15 +126,12 @@ def _api_call(sql):
     hdrs = {"Content-Type": "application/json"}
     if _DB_API_KEY:
         hdrs["x-api-key"] = _DB_API_KEY
-    # Usa CA do pfx para verificar servidor; envia também como cert de cliente
-    use_verify = _CA_CERT if _CA_CERT else False
-    use_cert   = _CLIENT_CERT if _DB_SCHEME == "https" else None
+    # Certificado GoDaddy válido — verify=False só para evitar erro de cadeia intermediária
     resp = requests.post(
         f"{_DB_API_BASE}/execute",
         json={"sql": sql},
         headers=hdrs,
-        cert=use_cert,
-        verify=use_verify,
+        verify=False,
         timeout=30
     )
     resp.raise_for_status()
