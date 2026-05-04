@@ -1,4 +1,4 @@
-# HTTP API + mTLS (certificado cliente sqltech.pfx) — rebuild 2026-04-30e
+# Conexao direta SAP IQ via pymssql (tunel TCP 3030) — rebuild 2026-05-04a
 flask==3.1.0
 requests==2.32.3
 gunicorn==23.0.0
@@ -6,3 +6,4 @@ pandas==2.2.3
 openpyxl==3.1.5
 urllib3==2.2.3
 cryptography==42.0.8
+pymssql==2.3.1

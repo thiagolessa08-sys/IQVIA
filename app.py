@@ -11,47 +11,46 @@ app.secret_key = os.environ.get("SECRET_KEY", "iqvia-pharma-2026-xK9m")
 app.config["MAX_CONTENT_LENGTH"] = 300 * 1024 * 1024  # 300 MB
 DB_PATH = os.path.join(os.path.dirname(__file__), "data", "iqvia.db")
 
-# ── DB Layer (HTTP API → claude.sqltech.com.br/execute) ──────────────────
-_DB_HOST     = os.environ.get("DATABASE_HOST", "claude.sqltech.com.br")
-_DB_PORT     = int(os.environ.get("DATABASE_PORT", "3030"))
-_DB_API_KEY  = os.environ.get("SQLTECH_TOKEN", "")   # Railway: add SQLTECH_TOKEN variable
-_DB_SCHEME   = os.environ.get("DATABASE_SCHEME", "http")   # porta 3030 = proxy HTTP Node.js
-_DB_API_BASE = f"{_DB_SCHEME}://{_DB_HOST}:{_DB_PORT}"
-USE_HTTP_API = bool(_DB_HOST)
-
-# Certificado de cliente mTLS (sqltech.pfx, senha 1234)
-_PFX_PATH    = os.path.join(os.path.dirname(__file__), "sqltech.pfx")
-_PFX_PASS    = os.environ.get("PFX_PASSWORD", "1234").encode()
-_CLIENT_CERT = None   # tuple (cert_pem_path, key_pem_path) — preenchido no startup
-
-def _load_client_cert():
-    """Extrai cert+key do .pfx e grava em arquivos .pem temporários."""
-    global _CLIENT_CERT
-    if not os.path.exists(_PFX_PATH):
-        print(f"[ssl] {_PFX_PATH} não encontrado — mTLS desativado.")
-        return
-    try:
-        from cryptography.hazmat.primitives.serialization import pkcs12, Encoding, PrivateFormat, NoEncryption
-        with open(_PFX_PATH, "rb") as f:
-            pfx_data = f.read()
-        key, cert, _ = pkcs12.load_key_and_certificates(pfx_data, _PFX_PASS)
-        data_dir = os.path.join(os.path.dirname(__file__), "data")
-        os.makedirs(data_dir, exist_ok=True)
-        cert_path = os.path.join(data_dir, "_client.crt")
-        key_path  = os.path.join(data_dir, "_client.key")
-        with open(cert_path, "wb") as f:
-            f.write(cert.public_bytes(Encoding.PEM))
-        with open(key_path, "wb") as f:
-            f.write(key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()))
-        _CLIENT_CERT = (cert_path, key_path)
-        print(f"[ssl] Certificado de cliente carregado: {cert.subject}")
-    except Exception as e:
-        print(f"[ssl] Erro ao carregar certificado: {e}")
-
-_load_client_cert()
-
-# Tabela real no SAP IQ
+# ── Tabela real no SAP IQ ─────────────────────────────────────────────────
 TABLE_PRESC = os.environ.get("TABLE_PRESC", "qqhetl.PBS_AI_ANALYTICS")
+
+# ── Modo A: Conexão direta pymssql (túnel TCP claude.sqltech.com.br:3030) ─
+_IQ_HOST = os.environ.get("IQ_HOST", "claude.sqltech.com.br")
+_IQ_PORT = int(os.environ.get("IQ_PORT", "3030"))
+_IQ_DB   = os.environ.get("IQ_DATABASE", "IQHML")
+_IQ_USER = os.environ.get("IQ_USER", "iaapi")
+_IQ_PASS = os.environ.get("IQ_PASSWORD", "i@sql2025HML")
+USE_DIRECT = True   # usa pymssql direto; muda para False quando API HTTP estiver pronta
+
+# ── Modo B: HTTP API (claude.sqltech.com.br:443 — aguarda certificado) ────
+_DB_HOST     = os.environ.get("DATABASE_HOST", "claude.sqltech.com.br")
+_DB_PORT     = int(os.environ.get("DATABASE_PORT", "443"))
+_DB_API_KEY  = os.environ.get("SQLTECH_TOKEN", "")
+_DB_SCHEME   = os.environ.get("DATABASE_SCHEME", "https")
+_DB_API_BASE = f"{_DB_SCHEME}://{_DB_HOST}:{_DB_PORT}"
+USE_HTTP_API = bool(_DB_API_KEY) and not USE_DIRECT
+
+def _direct_query(sql):
+    """Conexão direta ao SAP IQ via pymssql (túnel TCP porta 3030)."""
+    import pymssql
+    conn = pymssql.connect(
+        server=_IQ_HOST,
+        port=_IQ_PORT,
+        database=_IQ_DB,
+        user=_IQ_USER,
+        password=_IQ_PASS,
+        login_timeout=15,
+        timeout=30,
+        as_dict=True,
+        tds_version="5.0"
+    )
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute(sql)
+            try:
+                return cur.fetchall()
+            except Exception:
+                return []
 
 def adapt_sql(sql):
     """Redireciona 'prescricoes' → tabela real e converte LIMIT→TOP."""
@@ -102,8 +101,10 @@ def _api_call(sql):
     return []
 
 def query(sql, params=()):
+    final = adapt_sql(_inline_params(sql, params))
+    if USE_DIRECT:
+        return _direct_query(final)
     if USE_HTTP_API:
-        final = adapt_sql(_inline_params(sql, params))
         return _api_call(final)
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
@@ -113,8 +114,11 @@ def query(sql, params=()):
     return rows
 
 def execute(sql, params=()):
+    final = adapt_sql(_inline_params(sql, params))
+    if USE_DIRECT:
+        _direct_query(final)
+        return
     if USE_HTTP_API:
-        final = adapt_sql(_inline_params(sql, params))
         _api_call(final)
         return
     con = sqlite3.connect(DB_PATH)
@@ -123,16 +127,13 @@ def execute(sql, params=()):
     con.close()
 
 def table_exists(name):
-    if USE_HTTP_API:
-        try:
-            rows = query(
-                "SELECT COUNT(*) AS ex FROM information_schema.tables "
-                "WHERE table_schema='qqhetl' AND table_name='PBS_AI_ANALYTICS'")
-            return bool(rows[0].get("ex", 0))
-        except Exception:
-            return True  # assume existente
-    rows = query("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (name,))
-    return bool(rows)
+    try:
+        rows = query(
+            "SELECT COUNT(*) AS ex FROM information_schema.tables "
+            "WHERE table_schema='qqhetl' AND table_name='PBS_AI_ANALYTICS'")
+        return bool(rows[0].get("ex", 0))
+    except Exception:
+        return True  # assume existente em caso de erro
 
 def _df_to_table(df, table_name):
     if USE_HTTP_API:
@@ -662,30 +663,30 @@ def test_db():
     import time
     result = {
         "config": {
-            "api_base":     _DB_API_BASE,
-            "use_http_api": USE_HTTP_API,
-            "api_key_set":  bool(_DB_API_KEY),
-            "cert_loaded":  _CLIENT_CERT is not None,
-            "cert_path":    _CLIENT_CERT[0] if _CLIENT_CERT else "não carregado",
+            "modo":         "direto_pymssql" if USE_DIRECT else ("http_api" if USE_HTTP_API else "sqlite"),
+            "iq_host":      _IQ_HOST,
+            "iq_port":      _IQ_PORT,
+            "iq_database":  _IQ_DB,
+            "iq_user":      _IQ_USER,
             "table":        TABLE_PRESC,
         },
         "steps": {}
     }
 
-    if not USE_HTTP_API:
-        result["steps"]["0_config"] = {"ok": False, "erro": "DATABASE_HOST não configurado."}
-        result["status"] = "SEM_CONFIG"
-        return jsonify(result)
-
     # 1. Ping via SELECT 1
     t0 = time.time()
     try:
-        rows = _api_call("SELECT 1 AS ping")
+        rows = query("SELECT 1 AS ping FROM iqhdummy")  # SAP IQ usa iqhdummy como dual
         result["steps"]["1_ping"] = {"ok": True, "resposta": rows, "ms": round((time.time()-t0)*1000)}
     except Exception as e:
-        result["steps"]["1_ping"] = {"ok": False, "erro": str(e), "ms": round((time.time()-t0)*1000)}
-        result["status"] = "FALHOU"
-        return jsonify(result)
+        # fallback: tenta sem FROM
+        try:
+            rows = query("SELECT 1 AS ping")
+            result["steps"]["1_ping"] = {"ok": True, "resposta": rows, "ms": round((time.time()-t0)*1000)}
+        except Exception as e2:
+            result["steps"]["1_ping"] = {"ok": False, "erro": str(e2), "ms": round((time.time()-t0)*1000)}
+            result["status"] = "FALHOU"
+            return jsonify(result)
 
     # 2. Tabela existe?
     t0 = time.time()
