@@ -41,8 +41,7 @@ def _direct_query(sql):
         password=_IQ_PASS,
         login_timeout=15,
         timeout=30,
-        as_dict=True,
-        tds_version="5.0"
+        as_dict=True
     )
     with conn:
         with conn.cursor() as cur:
