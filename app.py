@@ -20,15 +20,15 @@ _IQ_PORT = int(os.environ.get("IQ_PORT", "3030"))
 _IQ_DB   = os.environ.get("IQ_DATABASE", "IQHML")
 _IQ_USER = os.environ.get("IQ_USER", "iaapi")
 _IQ_PASS = os.environ.get("IQ_PASSWORD", "i@sql2025HML")
-USE_DIRECT = True   # usa pymssql direto; muda para False quando API HTTP estiver pronta
+USE_DIRECT = False  # pymssql incompatível com SAP IQ — usar HTTP API
 
-# ── Modo B: HTTP API (claude.sqltech.com.br:443 — aguarda certificado) ────
+# ── Modo B: HTTP API (claude.sqltech.com.br:443) ──────────────────────────
 _DB_HOST     = os.environ.get("DATABASE_HOST", "claude.sqltech.com.br")
 _DB_PORT     = int(os.environ.get("DATABASE_PORT", "443"))
 _DB_API_KEY  = os.environ.get("SQLTECH_TOKEN", "")
 _DB_SCHEME   = os.environ.get("DATABASE_SCHEME", "https")
 _DB_API_BASE = f"{_DB_SCHEME}://{_DB_HOST}:{_DB_PORT}"
-USE_HTTP_API = bool(_DB_API_KEY) and not USE_DIRECT
+USE_HTTP_API = bool(_DB_HOST)
 
 def _direct_query(sql):
     """Conexão direta ao SAP IQ via pymssql (túnel TCP porta 3030)."""
