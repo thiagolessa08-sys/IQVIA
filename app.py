@@ -23,10 +23,10 @@ _IQ_PASS = os.environ.get("IQ_PASSWORD", "i@sql2025HML")
 USE_DIRECT = False  # pymssql incompatível com SAP IQ — usar HTTP API
 
 # ── Modo B: HTTP API (sqlsrv50.sqltech.com.br:443 via FortiGate) ─────────
-_DB_HOST     = os.environ.get("DATABASE_HOST", "sqlsrv50.sqltech.com.br")
-_DB_PORT     = int(os.environ.get("DATABASE_PORT", "443"))
+_DB_HOST     = os.environ.get("DATABASE_HOST", "claude.sqltech.com.br")
+_DB_PORT     = int(os.environ.get("DATABASE_PORT", "3030"))
 _DB_API_KEY  = os.environ.get("SQLTECH_TOKEN", "")
-_DB_SCHEME   = os.environ.get("DATABASE_SCHEME", "https")
+_DB_SCHEME   = os.environ.get("DATABASE_SCHEME", "http")
 _DB_API_BASE = f"{_DB_SCHEME}://{_DB_HOST}:{_DB_PORT}"
 USE_HTTP_API = bool(_DB_HOST)
 
