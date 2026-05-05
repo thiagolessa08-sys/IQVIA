@@ -598,11 +598,52 @@ document.addEventListener('DOMContentLoaded',async()=>{
   const name=m?decodeURIComponent(m[1]):'Usuário';
   document.getElementById('userName').textContent=name;
   document.getElementById('userAvatar').textContent=name.charAt(0).toUpperCase();
-  /* Garante que o overlay some em no máximo 8s independente das queries */
-  const loaderMax=setTimeout(hideLoader,8000);
-  try{ await loadAll(); }catch(e){ console.warn('loadAll err',e); }
-  clearTimeout(loaderMax);
-  hideLoader();
+
+  const loaderTxt=document.getElementById('loaderTxt');
+  const loaderSub=document.getElementById('loaderSub');
+
+  async function tryLoad(){
+    const data=await get('/api/prescritores/ranking?limit=200',30000);
+    if(data && data.length){
+      const total=data.reduce((s,r)=>s+(r.total_receitas||0),0);
+      const media=data.length?Math.round(total/data.length):0;
+      document.getElementById('kpiMedicos').textContent =fmt(data.length);
+      document.getElementById('kpiReceitas').textContent=fmt(total);
+      document.getElementById('kpiMedia').textContent   =fmt(media);
+      document.getElementById('rankCount').textContent  =data.length+' médicos';
+      document.getElementById('rankingTable').innerHTML=`
+        <table>
+          <thead><tr><th>#</th><th>Médico</th><th>Localização</th><th>Receitas</th><th>Medicamentos</th><th>Labs</th><th>Marcas</th></tr></thead>
+          <tbody>${data.map((r,i)=>`<tr onclick="openModal('${r.crm}')">
+            <td><span class="rank ${i<3?'rank-top':''}">${i+1}</span></td>
+            <td><div class="medico-name">${r.medico||'—'}</div><div class="medico-loc">${r.crm}</div></td>
+            <td><div>${r.cidade||'—'}</div><div class="medico-loc">${r.estado||''}</div></td>
+            <td>${fmtM(r.total_receitas)}</td><td>${fmtM(r.total_medicamentos)}</td>
+            <td><span class="badge badge-blue">${r.qtde_labs}</span></td>
+            <td><span class="badge badge-green">${r.qtde_marcas}</span></td>
+          </tr>`).join('')}</tbody></table>`;
+      return true;
+    }
+    return false;
+  }
+
+  if(await tryLoad()){ hideLoader(); return; }
+
+  loaderTxt.textContent='Preparando dados…';
+  loaderSub.textContent='Primeira carga: buscando do banco de dados. Aguarde alguns instantes.';
+
+  let tentativas=0;
+  const intervalo=setInterval(async()=>{
+    tentativas++;
+    loaderSub.textContent=`Conectando ao banco… (${tentativas}/30)`;
+    if(await tryLoad()){ clearInterval(intervalo); hideLoader(); return; }
+    if(tentativas>=30){
+      clearInterval(intervalo);
+      loaderTxt.textContent='Dados indisponíveis';
+      loaderSub.textContent='Verifique se o servidor de dados está ativo e recarregue a página.';
+      setTimeout(hideLoader,4000);
+    }
+  },10000);
 });
 </script>
 </body>

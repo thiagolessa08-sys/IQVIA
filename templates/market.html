@@ -170,6 +170,10 @@
   .loader-brand{font-family:'Calibri','Gill Sans MT','Trebuchet MS',sans-serif;font-size:42px;font-style:italic;color:var(--blue);letter-spacing:-0.01em;line-height:1;}
   .loader-ring{width:40px;height:40px;border:3px solid var(--line-2);border-top-color:var(--blue);border-radius:50%;animation:spin .75s linear infinite;margin-top:8px;}
   .loader-txt{font-size:13px;color:var(--ink-3);font-weight:500;}
+  .loader-sub{font-size:11px;color:var(--ink-3);margin-top:4px;max-width:280px;text-align:center;line-height:1.5;}
+  .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:160px;gap:10px;color:var(--ink-3);}
+  .empty-state svg{width:36px;height:36px;opacity:.35;}
+  .empty-state p{font-size:13px;margin:0;}
 </style>
 </head>
 <body>
@@ -178,7 +182,8 @@
 <div id="pageLoader">
   <div class="loader-brand">Pharma Analytics</div>
   <div class="loader-ring"></div>
-  <div class="loader-txt">Carregando dados…</div>
+  <div class="loader-txt" id="loaderTxt">Carregando dados…</div>
+  <div class="loader-sub" id="loaderSub"></div>
 </div>
 
 <div class="app">
@@ -550,15 +555,47 @@ document.addEventListener('DOMContentLoaded',async()=>{
   document.getElementById('userName').textContent=name;
   document.getElementById('userAvatar').textContent=name.charAt(0).toUpperCase();
 
-  /* Garante que o overlay some em no máximo 6s,
-     mesmo que as queries demorem ou falhem */
-  const loaderMax=setTimeout(hideLoader,6000);
+  const loaderTxt = document.getElementById('loaderTxt');
+  const loaderSub = document.getElementById('loaderSub');
 
-  /* Roda filtros e dados em paralelo — allSettled = não trava se um falhar */
-  await loadAll();
+  /* Tenta carregar. Se não tiver dados ainda, mostra aviso e reintenta */
+  async function tryLoad(){
+    const d = await get('/api/dashboard?group_by_share=laboratorio&group_by_geo=estado', 30000);
+    const temDados = d && (d.kpis?.total_receitas || (d.evolucao && d.evolucao.length));
+    if(temDados){
+      if(d.kpis)     renderKPIs(d.kpis);
+      if(d.evolucao) renderEvolucao(d.evolucao);
+      if(d.share)    renderShare(d.share);
+      if(d.geo)      renderGeo(d.geo);
+      return true;
+    }
+    return false;
+  }
 
-  clearTimeout(loaderMax);
-  hideLoader();
+  /* Primeira tentativa imediata */
+  if(await tryLoad()){ hideLoader(); return; }
+
+  /* Sem dados ainda — mostra aviso e reintenta a cada 10s por até 5 min */
+  loaderTxt.textContent = 'Preparando dados…';
+  loaderSub.textContent = 'Primeira carga: buscando do banco de dados. Aguarde alguns instantes.';
+
+  let tentativas = 0;
+  const maxTentativas = 30;  // 30 × 10s = 5 min
+  const intervalo = setInterval(async()=>{
+    tentativas++;
+    loaderSub.textContent = `Conectando ao banco… (${tentativas}/${maxTentativas})`;
+    if(await tryLoad()){
+      clearInterval(intervalo);
+      hideLoader();
+      return;
+    }
+    if(tentativas >= maxTentativas){
+      clearInterval(intervalo);
+      loaderTxt.textContent = 'Dados indisponíveis';
+      loaderSub.textContent = 'Verifique se o servidor de dados está ativo e recarregue a página.';
+      setTimeout(hideLoader, 4000);
+    }
+  }, 10000);
 });
 </script>
 </body>
