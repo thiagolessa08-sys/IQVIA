@@ -129,7 +129,7 @@ def _api_call(sql):
         json={"sql": sql, "limit": 500},
         headers=hdrs,
         verify=True,
-        timeout=60
+        timeout=180
     )
     resp.raise_for_status()
     data = resp.json()
