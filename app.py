@@ -546,87 +546,55 @@ def market_geografico():
     cache_set(ck, rows)
     return jsonify(rows)
 
-# ── Dashboard combinado (1 round trip = KPIs + evolução + share + geo) ───
+# ── Dashboard: serve arquivo estático se existir, senão queries ao vivo ──
 @app.route("/api/dashboard")
 @login_required
 def dashboard_combined():
-    """
-    Retorna todos os dados do Market Intelligence em uma única chamada.
-    Reduz de 5 round trips Cloudflare para 1, acelerando drasticamente o carregamento.
-    """
-    filters, params = build_filters(request.args)
-    w = f"WHERE {filters}" if filters else ""
-    share_col = {
-        "laboratorio": "MANUFACTURER_DESC",
-        "marca":       "BRAND_NAME",
-        "molecula":    "COMBINED_MOLECULE_DESC",
-    }.get(request.args.get("group_by_share", "laboratorio"), "MANUFACTURER_DESC")
-    geo_col = {
-        "estado": "STATE_DESC",
-        "cidade": "CITY_DESC",
-        "brick":  "IMS_BRICK_DESC",
-    }.get(request.args.get("group_by_geo", "estado"), "STATE_DESC")
+    # Arquivo gerado → serve direto, sem nenhuma query
+    if os.path.exists(_STATIC_DASH):
+        with open(_STATIC_DASH, encoding="utf-8") as f:
+            content = f.read()
+        return app.response_class(content, mimetype="application/json")
 
-    ck = f"dash:{filters}:{params}:{share_col}:{geo_col}"
-    cached = cache_get(ck)
-    if cached:
-        return jsonify(cached)
-
-    # KPIs
-    kpis_r = query(f"""
-        SELECT
-            COALESCE(SUM(RX_COUNT_TOTAL), 0)        AS total_receitas,
-            COALESCE(SUM(DISPENSED_QTY_TOTAL), 0)    AS total_medicamentos,
-            COUNT(DISTINCT DOCTOR_DISPLAY_CD)         AS qtde_medicos,
-            COUNT(DISTINCT MANUFACTURER_DESC)         AS qtde_laboratorios,
-            COUNT(DISTINCT BRAND_NAME)                AS qtde_marcas,
-            COUNT(DISTINCT COMBINED_MOLECULE_DESC)    AS qtde_moleculas
-        FROM prescricoes {w}
-    """, params)
-    kpis = kpis_r[0] if kpis_r else {}
-
-    # Evolução por período
-    evolucao = query(f"""
-        SELECT PERIOD_CD                 AS periodo,
-               SUM(RX_COUNT_TOTAL)      AS receitas,
-               SUM(DISPENSED_QTY_TOTAL)  AS medicamentos
-        FROM prescricoes {w}
-        GROUP BY PERIOD_CD
-        ORDER BY PERIOD_CD
-    """, params)
-
-    # Share — sem window function, % calculado em Python
-    share_raw = query(f"""
-        SELECT {share_col} AS nome,
-               SUM(RX_COUNT_TOTAL)       AS receitas,
-               SUM(DISPENSED_QTY_TOTAL)  AS medicamentos,
-               COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS medicos
-        FROM prescricoes {w}
-        GROUP BY {share_col}
-        ORDER BY SUM(RX_COUNT_TOTAL) DESC
-        LIMIT 15
-    """, params)
-    total_rx = sum(r.get("receitas") or 0 for r in share_raw) or 1
-    share = [
-        {**r, "share": round((r.get("receitas") or 0) * 100.0 / total_rx, 2)}
-        for r in share_raw
-    ]
-
-    # Geográfico — ORDER BY expressão (Sybase IQ não aceita alias)
-    geo = query(f"""
-        SELECT {geo_col}                         AS regiao,
-               SUM(RX_COUNT_TOTAL)               AS receitas,
-               SUM(DISPENSED_QTY_TOTAL)           AS medicamentos,
-               COUNT(DISTINCT DOCTOR_DISPLAY_CD)  AS medicos
-        FROM prescricoes {w}
-        GROUP BY {geo_col}
-        ORDER BY SUM(RX_COUNT_TOTAL) DESC
-        LIMIT 20
-    """, params)
-
-    result = {"kpis": kpis, "evolucao": evolucao, "share": share, "geo": geo}
-    cache_set(ck, result)
-    return jsonify(result)
+    # Sem arquivo → busca ao vivo no SAP IQ
+    try:
+        kpis_r = query("""
+            SELECT COALESCE(SUM(RX_COUNT_TOTAL),0) AS total_receitas,
+                   COALESCE(SUM(DISPENSED_QTY_TOTAL),0) AS total_medicamentos,
+                   COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS qtde_medicos,
+                   COUNT(DISTINCT MANUFACTURER_DESC) AS qtde_laboratorios,
+                   COUNT(DISTINCT BRAND_NAME) AS qtde_marcas,
+                   COUNT(DISTINCT COMBINED_MOLECULE_DESC) AS qtde_moleculas
+            FROM prescricoes
+        """)
+        evolucao = query("""
+            SELECT PERIOD_CD AS periodo,
+                   SUM(RX_COUNT_TOTAL) AS receitas,
+                   SUM(DISPENSED_QTY_TOTAL) AS medicamentos
+            FROM prescricoes GROUP BY PERIOD_CD ORDER BY PERIOD_CD
+        """)
+        share_raw = query("""
+            SELECT MANUFACTURER_DESC AS nome,
+                   SUM(RX_COUNT_TOTAL) AS receitas,
+                   SUM(DISPENSED_QTY_TOTAL) AS medicamentos,
+                   COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS medicos
+            FROM prescricoes GROUP BY MANUFACTURER_DESC
+            ORDER BY SUM(RX_COUNT_TOTAL) DESC LIMIT 15
+        """)
+        total_rx = sum(r.get("receitas") or 0 for r in share_raw) or 1
+        share = [{**r, "share": round((r.get("receitas") or 0)*100.0/total_rx, 2)} for r in share_raw]
+        geo = query("""
+            SELECT STATE_DESC AS regiao,
+                   SUM(RX_COUNT_TOTAL) AS receitas,
+                   SUM(DISPENSED_QTY_TOTAL) AS medicamentos,
+                   COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS medicos
+            FROM prescricoes GROUP BY STATE_DESC
+            ORDER BY SUM(RX_COUNT_TOTAL) DESC LIMIT 20
+        """)
+        return jsonify({"kpis": kpis_r[0] if kpis_r else {}, "evolucao": evolucao,
+                        "share": share, "geo": geo})
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 503
 
 
 def _prewarm_cache():
@@ -856,29 +824,31 @@ def admin_generate_static():
 @app.route("/api/prescritores/ranking")
 @login_required
 def prescritores_ranking():
-    filters, params = build_filters(request.args)
-    w = f"WHERE {filters}" if filters else ""
-    limit = min(request.args.get("limit", 200, type=int), 500)
-    ck = f"ranking:{filters}:{params}:{limit}"
-    cached = cache_get(ck)
-    if cached: return jsonify(cached)
-    rows = query(f"""
-        SELECT DOCTOR_DISPLAY_CD                                  AS crm,
-               TRIM(FIRST_NM) || ' ' || TRIM(SURNM_NM)           AS medico,
-               CITY_DESC                                          AS cidade,
-               STATE_DESC                                         AS estado,
-               IMS_BRICK_DESC                                     AS brick,
-               SUM(RX_COUNT_TOTAL)                                AS total_receitas,
-               SUM(DISPENSED_QTY_TOTAL)                           AS total_medicamentos,
-               COUNT(DISTINCT MANUFACTURER_DESC)                   AS qtde_labs,
-               COUNT(DISTINCT BRAND_NAME)                         AS qtde_marcas
-        FROM prescricoes {w}
-        GROUP BY DOCTOR_DISPLAY_CD, FIRST_NM, SURNM_NM, CITY_DESC, STATE_DESC, IMS_BRICK_DESC
-        ORDER BY SUM(RX_COUNT_TOTAL) DESC
-        LIMIT {limit}
-    """, params)
-    cache_set(ck, rows)
-    return jsonify(rows)
+    # Arquivo gerado → serve direto, sem nenhuma query
+    if os.path.exists(_STATIC_RANK):
+        with open(_STATIC_RANK, encoding="utf-8") as f:
+            data = json.load(f)
+        # ranking.json tem formato {"ranking": [...], "generated_at": "..."}
+        rows = data.get("ranking", data) if isinstance(data, dict) else data
+        return jsonify(rows)
+
+    # Sem arquivo → busca ao vivo no SAP IQ
+    try:
+        rows = query("""
+            SELECT DOCTOR_DISPLAY_CD                             AS crm,
+                   TRIM(FIRST_NM) || ' ' || TRIM(SURNM_NM)     AS medico,
+                   CITY_DESC AS cidade, STATE_DESC AS estado, IMS_BRICK_DESC AS brick,
+                   SUM(RX_COUNT_TOTAL)                          AS total_receitas,
+                   SUM(DISPENSED_QTY_TOTAL)                     AS total_medicamentos,
+                   COUNT(DISTINCT MANUFACTURER_DESC)             AS qtde_labs,
+                   COUNT(DISTINCT BRAND_NAME)                   AS qtde_marcas
+            FROM prescricoes
+            GROUP BY DOCTOR_DISPLAY_CD, FIRST_NM, SURNM_NM, CITY_DESC, STATE_DESC, IMS_BRICK_DESC
+            ORDER BY SUM(RX_COUNT_TOTAL) DESC LIMIT 200
+        """)
+        return jsonify(rows)
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 503
 
 @app.route("/api/prescritores/perfil/<crm_id>")
 @login_required
