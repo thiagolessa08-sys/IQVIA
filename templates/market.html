@@ -502,40 +502,82 @@ async function applyFilters(){
   hideLoader();
 }
 
-async function loadKPIs(){
-  try{
-    const d=await get('/api/market/kpis?'+params());
-    if(!d)return;
-    document.getElementById('kpiReceitas').textContent=fmt(d.total_receitas);
-    document.getElementById('kpiMeds').textContent    =fmt(d.total_medicamentos);
-    document.getElementById('kpiLabs').textContent    =fmt(d.qtde_laboratorios);
-    document.getElementById('kpiMarcas').textContent  =fmt(d.qtde_marcas);
-    document.getElementById('kpiMols').textContent    =fmt(d.qtde_moleculas);
-  }catch(e){console.warn('loadKPIs err',e);}
+/* ── Renderizadores individuais (recebem dados já carregados) ─────────── */
+function renderKPIs(d){
+  if(!d)return;
+  document.getElementById('kpiReceitas').textContent=fmt(d.total_receitas);
+  document.getElementById('kpiMeds').textContent    =fmt(d.total_medicamentos);
+  document.getElementById('kpiLabs').textContent    =fmt(d.qtde_laboratorios);
+  document.getElementById('kpiMarcas').textContent  =fmt(d.qtde_marcas);
+  document.getElementById('kpiMols').textContent    =fmt(d.qtde_moleculas);
 }
 
-async function loadEvolucao(){
-  try{
-    const data=await get('/api/market/evolucao?'+params());
-    if(!data||!data.length)return;
-    const labels=data.map(r=>{const p=String(r.periodo);return p.slice(0,4)+'/'+p.slice(4);});
-    if(charts.ev)charts.ev.destroy();
-    charts.ev=new Chart(document.getElementById('chartEvolucao'),{
-      type:'line',
-      data:{labels,datasets:[{label:'Receitas',data:data.map(r=>r.receitas),
-        borderColor:'#1a56db',backgroundColor:'rgba(26,86,219,.07)',
-        borderWidth:2.5,fill:true,tension:.35,
-        pointRadius:5,pointBackgroundColor:'#1a56db',pointBorderColor:'#fff',pointBorderWidth:2}]},
-      options:{responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false}},
-        scales:{
-          x:{grid:{display:false},ticks:{color:tickClr(),font:{size:11,family:"'JetBrains Mono'"}}},
-          y:{grid:{color:gridClr()},ticks:{color:tickClr(),font:{size:11},callback:v=>fmt(v)}}
-        }}
-    });
-  }catch(e){console.warn('loadEvolucao err',e);}
+function renderEvolucao(data){
+  if(!data||!data.length)return;
+  const labels=data.map(r=>{const p=String(r.periodo);return p.slice(0,4)+'/'+p.slice(4);});
+  if(charts.ev)charts.ev.destroy();
+  charts.ev=new Chart(document.getElementById('chartEvolucao'),{
+    type:'line',
+    data:{labels,datasets:[{label:'Receitas',data:data.map(r=>r.receitas),
+      borderColor:'#1a56db',backgroundColor:'rgba(26,86,219,.07)',
+      borderWidth:2.5,fill:true,tension:.35,
+      pointRadius:5,pointBackgroundColor:'#1a56db',pointBorderColor:'#fff',pointBorderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{grid:{display:false},ticks:{color:tickClr(),font:{size:11,family:"'JetBrains Mono'"}}},
+        y:{grid:{color:gridClr()},ticks:{color:tickClr(),font:{size:11},callback:v=>fmt(v)}}
+      }}
+  });
 }
 
+function renderShare(data){
+  if(!data||!data.length){
+    document.getElementById('shareTable').innerHTML='<div class="loading" style="color:var(--ink-3);font-size:13px;justify-content:center">Sem dados</div>';
+    return;
+  }
+  if(charts.sh)charts.sh.destroy();
+  charts.sh=new Chart(document.getElementById('chartShare'),{
+    type:'doughnut',
+    data:{labels:data.map(r=>r.nome),datasets:[{data:data.map(r=>r.receitas),
+      backgroundColor:COLORS_HEX,borderWidth:3,borderColor:isDark()?'#1a2535':'#fff'}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',
+      plugins:{
+        legend:{position:'bottom',labels:{color:tickClr(),font:{size:10},padding:8,boxWidth:8}},
+        tooltip:{callbacks:{label:ctx=>{const d=data[ctx.dataIndex];return` ${d.share}%  (${fmt(d.receitas)})`;}}}
+      }}
+  });
+  const max=data[0]?.receitas||1;
+  document.getElementById('shareTable').innerHTML=`<table>
+    <thead><tr><th>#</th><th>${shareGroup.charAt(0).toUpperCase()+shareGroup.slice(1)}</th><th>Receitas</th><th>Share</th></tr></thead>
+    <tbody>${data.map((r,i)=>`<tr>
+      <td><span class="badge badge-blue">${i+1}</span></td>
+      <td><strong>${r.nome||'—'}</strong></td>
+      <td>${fmtM(r.receitas)}</td>
+      <td><div style="display:flex;align-items:center;gap:8px">
+        <div style="flex:1;height:6px;background:var(--bar-track);border-radius:999px;overflow:hidden">
+          <div style="width:${(r.receitas/max*100).toFixed(0)}%;height:100%;background:var(--blue);border-radius:999px"></div>
+        </div>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink-3);min-width:42px">${r.share}%</span>
+      </div></td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+function renderGeo(data){
+  if(!data||!data.length){
+    document.getElementById('geoList').innerHTML='<div class="loading" style="font-size:13px">Sem dados</div>';
+    return;
+  }
+  const max=data[0]?.receitas||1;
+  document.getElementById('geoList').innerHTML=data.slice(0,10).map((r,i)=>`
+    <div class="media-row">
+      <div class="mname">${r.regiao||'—'}</div>
+      <div class="media-bar"><i style="width:${(r.receitas/max*100).toFixed(0)}%;background:${COLORS_HEX[i%COLORS_HEX.length]}"></i></div>
+      <div class="mval">${fmt(r.receitas)}</div>
+    </div>`).join('');
+}
+
+/* ── Tabs de share e geo (chamam endpoint individual por ser rápido pós-cache) */
 function setShareGroup(g,el){
   shareGroup=g;
   el.closest('.tabs').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===el));
@@ -545,40 +587,10 @@ function setShareGroup(g,el){
   document.getElementById('rankTblTitle').textContent=rTitles[g];
   loadShare();
 }
-
 async function loadShare(){
   try{
     const p=new URLSearchParams(params());p.set('group_by',shareGroup);
-    const data=await get('/api/market/share?'+p);
-    if(!data||!data.length){
-      document.getElementById('shareTable').innerHTML='<div class="loading" style="color:var(--ink-3);font-size:13px;justify-content:center">Sem dados</div>';
-      return;
-    }
-    if(charts.sh)charts.sh.destroy();
-    charts.sh=new Chart(document.getElementById('chartShare'),{
-      type:'doughnut',
-      data:{labels:data.map(r=>r.nome),datasets:[{data:data.map(r=>r.receitas),
-        backgroundColor:COLORS_HEX,borderWidth:3,borderColor:isDark()?'#1a2535':'#fff'}]},
-      options:{responsive:true,maintainAspectRatio:false,cutout:'65%',
-        plugins:{
-          legend:{position:'bottom',labels:{color:tickClr(),font:{size:10},padding:8,boxWidth:8}},
-          tooltip:{callbacks:{label:ctx=>{const d=data[ctx.dataIndex];return` ${d.share}%  (${fmt(d.receitas)})`;}}}
-        }}
-    });
-    const max=data[0]?.receitas||1;
-    document.getElementById('shareTable').innerHTML=`<table>
-      <thead><tr><th>#</th><th>${shareGroup.charAt(0).toUpperCase()+shareGroup.slice(1)}</th><th>Receitas</th><th>Share</th></tr></thead>
-      <tbody>${data.map((r,i)=>`<tr>
-        <td><span class="badge badge-blue">${i+1}</span></td>
-        <td><strong>${r.nome||'—'}</strong></td>
-        <td>${fmtM(r.receitas)}</td>
-        <td><div style="display:flex;align-items:center;gap:8px">
-          <div style="flex:1;height:6px;background:var(--bar-track);border-radius:999px;overflow:hidden">
-            <div style="width:${(r.receitas/max*100).toFixed(0)}%;height:100%;background:var(--blue);border-radius:999px"></div>
-          </div>
-          <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink-3);min-width:42px">${r.share}%</span>
-        </div></td>
-      </tr>`).join('')}</tbody></table>`;
+    renderShare(await get('/api/market/share?'+p));
   }catch(e){console.warn('loadShare err',e);}
 }
 
@@ -590,24 +602,34 @@ function setGeoGroup(g,el){
 async function loadGeo(){
   try{
     const p=new URLSearchParams(params());p.set('group_by',geoGroup);
-    const data=await get('/api/market/geografico?'+p);
-    if(!data||!data.length){
-      document.getElementById('geoList').innerHTML='<div class="loading" style="font-size:13px">Sem dados</div>';
-      return;
-    }
-    const max=data[0]?.receitas||1;
-    document.getElementById('geoList').innerHTML=data.slice(0,10).map((r,i)=>`
-      <div class="media-row">
-        <div class="mname">${r.regiao||'—'}</div>
-        <div class="media-bar"><i style="width:${(r.receitas/max*100).toFixed(0)}%;background:${COLORS_HEX[i%COLORS_HEX.length]}"></i></div>
-        <div class="mval">${fmt(r.receitas)}</div>
-      </div>`).join('');
+    renderGeo(await get('/api/market/geografico?'+p));
   }catch(e){console.warn('loadGeo err',e);}
 }
 
-/* Roda todas as seções em paralelo sem bloquear umas nas outras */
+/* ── Dashboard combinado: 1 request = KPIs + evolução + share + geo ──── */
 async function loadAll(){
-  await Promise.allSettled([loadKPIs(),loadEvolucao(),loadShare(),loadGeo()]);
+  try{
+    const p=new URLSearchParams(params());
+    p.set('group_by_share', shareGroup);
+    p.set('group_by_geo',   geoGroup);
+    const d=await get('/api/dashboard?'+p);
+    if(!d){
+      /* fallback: endpoints individuais */
+      await Promise.allSettled([
+        get('/api/market/kpis?'+params()).then(renderKPIs),
+        get('/api/market/evolucao?'+params()).then(renderEvolucao),
+        get('/api/market/share?'+params()+'&group_by='+shareGroup).then(renderShare),
+        get('/api/market/geografico?'+params()+'&group_by='+geoGroup).then(renderGeo),
+      ]);
+      return;
+    }
+    renderKPIs(d.kpis);
+    renderEvolucao(d.evolucao);
+    renderShare(d.share);
+    renderGeo(d.geo);
+  }catch(e){
+    console.warn('loadAll err',e);
+  }
 }
 
 // Theme toggle

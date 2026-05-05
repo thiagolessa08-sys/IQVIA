@@ -203,7 +203,7 @@ def _df_to_table(df, table_name):
 
 # ── Cache simples em memória (TTL) ───────────────────────────────────────
 _cache = {}
-CACHE_TTL = 120  # segundos
+CACHE_TTL = 3600  # 1 hora — dados farmacêuticos não mudam por minuto
 
 def cache_get(key):
     entry = _cache.get(key)
@@ -499,6 +499,139 @@ def market_geografico():
     """, params)
     cache_set(ck, rows)
     return jsonify(rows)
+
+# ── Dashboard combinado (1 round trip = KPIs + evolução + share + geo) ───
+@app.route("/api/dashboard")
+@login_required
+def dashboard_combined():
+    """
+    Retorna todos os dados do Market Intelligence em uma única chamada.
+    Reduz de 5 round trips Cloudflare para 1, acelerando drasticamente o carregamento.
+    """
+    filters, params = build_filters(request.args)
+    w = f"WHERE {filters}" if filters else ""
+    share_col = {
+        "laboratorio": "MANUFACTURER_DESC",
+        "marca":       "BRAND_NAME",
+        "molecula":    "COMBINED_MOLECULE_DESC",
+    }.get(request.args.get("group_by_share", "laboratorio"), "MANUFACTURER_DESC")
+    geo_col = {
+        "estado": "STATE_DESC",
+        "cidade": "CITY_DESC",
+        "brick":  "IMS_BRICK_DESC",
+    }.get(request.args.get("group_by_geo", "estado"), "STATE_DESC")
+
+    ck = f"dash:{filters}:{params}:{share_col}:{geo_col}"
+    cached = cache_get(ck)
+    if cached:
+        return jsonify(cached)
+
+    # KPIs
+    kpis_r = query(f"""
+        SELECT
+            COALESCE(SUM(RX_COUNT_TOTAL), 0)        AS total_receitas,
+            COALESCE(SUM(DISPENSED_QTY_TOTAL), 0)    AS total_medicamentos,
+            COUNT(DISTINCT DOCTOR_DISPLAY_CD)         AS qtde_medicos,
+            COUNT(DISTINCT MANUFACTURER_DESC)         AS qtde_laboratorios,
+            COUNT(DISTINCT BRAND_NAME)                AS qtde_marcas,
+            COUNT(DISTINCT COMBINED_MOLECULE_DESC)    AS qtde_moleculas
+        FROM prescricoes {w}
+    """, params)
+    kpis = kpis_r[0] if kpis_r else {}
+
+    # Evolução por período
+    evolucao = query(f"""
+        SELECT PERIOD_CD                 AS periodo,
+               SUM(RX_COUNT_TOTAL)      AS receitas,
+               SUM(DISPENSED_QTY_TOTAL)  AS medicamentos
+        FROM prescricoes {w}
+        GROUP BY PERIOD_CD
+        ORDER BY PERIOD_CD
+    """, params)
+
+    # Share — sem window function, % calculado em Python
+    share_raw = query(f"""
+        SELECT {share_col} AS nome,
+               SUM(RX_COUNT_TOTAL)       AS receitas,
+               SUM(DISPENSED_QTY_TOTAL)  AS medicamentos,
+               COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS medicos
+        FROM prescricoes {w}
+        GROUP BY {share_col}
+        ORDER BY receitas DESC
+        LIMIT 15
+    """, params)
+    total_rx = sum(r.get("receitas") or 0 for r in share_raw) or 1
+    share = [
+        {**r, "share": round((r.get("receitas") or 0) * 100.0 / total_rx, 2)}
+        for r in share_raw
+    ]
+
+    # Geográfico
+    geo = query(f"""
+        SELECT {geo_col}                         AS regiao,
+               SUM(RX_COUNT_TOTAL)               AS receitas,
+               SUM(DISPENSED_QTY_TOTAL)           AS medicamentos,
+               COUNT(DISTINCT DOCTOR_DISPLAY_CD)  AS medicos
+        FROM prescricoes {w}
+        GROUP BY {geo_col}
+        ORDER BY receitas DESC
+        LIMIT 20
+    """, params)
+
+    result = {"kpis": kpis, "evolucao": evolucao, "share": share, "geo": geo}
+    cache_set(ck, result)
+    return jsonify(result)
+
+
+def _prewarm_cache():
+    """Executa o dashboard sem filtros em background para pré-aquecer o cache."""
+    import threading
+    def _run():
+        time.sleep(5)  # aguarda o servidor subir completamente
+        try:
+            print("[cache] Pre-aquecendo dashboard e filtros...")
+            # Simula a query do dashboard completo sem filtros
+            with app.app_context():
+                # Filtros
+                ck_f = "filters_all"
+                if not cache_get(ck_f):
+                    mols     = query("SELECT DISTINCT COMBINED_MOLECULE_DESC AS molecula    FROM prescricoes WHERE COMBINED_MOLECULE_DESC IS NOT NULL ORDER BY COMBINED_MOLECULE_DESC")
+                    labs     = query("SELECT DISTINCT MANUFACTURER_DESC     AS laboratorio FROM prescricoes WHERE MANUFACTURER_DESC     IS NOT NULL ORDER BY MANUFACTURER_DESC")
+                    estados  = query("SELECT DISTINCT STATE_DESC            AS estado       FROM prescricoes WHERE STATE_DESC            IS NOT NULL ORDER BY STATE_DESC")
+                    periodos = query("SELECT DISTINCT PERIOD_CD             AS periodo      FROM prescricoes WHERE PERIOD_CD             IS NOT NULL ORDER BY PERIOD_CD")
+                    cache_set(ck_f, {
+                        "moleculas":    [r["molecula"]    for r in mols],
+                        "laboratorios": [r["laboratorio"] for r in labs],
+                        "estados":      [r["estado"]      for r in estados],
+                        "periodos":     [r["periodo"]     for r in periodos],
+                    })
+                    print("[cache] Filtros prontos.")
+
+                # Dashboard principal (sem filtros)
+                ck_d = "dash::::MANUFACTURER_DESC:STATE_DESC"
+                if not cache_get(ck_d):
+                    # KPIs
+                    kpis_r = query("""
+                        SELECT COALESCE(SUM(RX_COUNT_TOTAL),0) AS total_receitas,
+                               COALESCE(SUM(DISPENSED_QTY_TOTAL),0) AS total_medicamentos,
+                               COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS qtde_medicos,
+                               COUNT(DISTINCT MANUFACTURER_DESC) AS qtde_laboratorios,
+                               COUNT(DISTINCT BRAND_NAME) AS qtde_marcas,
+                               COUNT(DISTINCT COMBINED_MOLECULE_DESC) AS qtde_moleculas
+                        FROM prescricoes
+                    """)
+                    evolucao = query("SELECT PERIOD_CD AS periodo, SUM(RX_COUNT_TOTAL) AS receitas, SUM(DISPENSED_QTY_TOTAL) AS medicamentos FROM prescricoes GROUP BY PERIOD_CD ORDER BY PERIOD_CD")
+                    share_raw = query("SELECT MANUFACTURER_DESC AS nome, SUM(RX_COUNT_TOTAL) AS receitas, SUM(DISPENSED_QTY_TOTAL) AS medicamentos, COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS medicos FROM prescricoes GROUP BY MANUFACTURER_DESC ORDER BY receitas DESC LIMIT 15")
+                    total_rx = sum(r.get("receitas") or 0 for r in share_raw) or 1
+                    share = [{**r, "share": round((r.get("receitas") or 0)*100.0/total_rx, 2)} for r in share_raw]
+                    geo = query("SELECT STATE_DESC AS regiao, SUM(RX_COUNT_TOTAL) AS receitas, SUM(DISPENSED_QTY_TOTAL) AS medicamentos, COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS medicos FROM prescricoes GROUP BY STATE_DESC ORDER BY receitas DESC LIMIT 20")
+                    cache_set(ck_d, {"kpis": kpis_r[0] if kpis_r else {}, "evolucao": evolucao, "share": share, "geo": geo})
+                    print("[cache] Dashboard pre-aquecido com sucesso.")
+        except Exception as e:
+            print(f"[cache] Pre-aquecimento falhou: {e}")
+    threading.Thread(target=_run, daemon=True).start()
+
+_prewarm_cache()
 
 # ── Prescritores ──────────────────────────────────────────────────────────
 @app.route("/api/prescritores/ranking")
