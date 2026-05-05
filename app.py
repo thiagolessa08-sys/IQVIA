@@ -24,7 +24,7 @@ USE_DIRECT = False  # pymssql incompatível com SAP IQ — usar HTTP API
 
 # ── Agente Java via Cloudflare Tunnel ────────────────────────────────────
 # URL muda a cada reinício do tunnel — atualizar AGENT_URL no Railway
-_AGENT_URL     = os.environ.get("AGENT_URL", "https://democrat-hoping-marked-oscar.trycloudflare.com")
+_AGENT_URL     = os.environ.get("AGENT_URL", "https://membrane-hdtv-qui-casual.trycloudflare.com")
 _AGENT_API_KEY = os.environ.get("AGENT_API_KEY", "")
 USE_HTTP_API   = True  # sempre usa o agente Java
 
@@ -301,20 +301,20 @@ def build_filters(args):
     mols = [m.strip() for m in mol_raw.split(",") if m.strip()]
     if mols:
         placeholders = ",".join(["?"] * len(mols))
-        clauses.append(f"molecula IN ({placeholders})")
+        clauses.append(f"COMBINED_MOLECULE_DESC IN ({placeholders})")
         params.extend(mols)
     if args.get("laboratorio"):
-        clauses.append("laboratorio = ?"); params.append(args["laboratorio"])
+        clauses.append("MANUFACTURER_DESC = ?"); params.append(args["laboratorio"])
     if args.get("estado"):
-        clauses.append("estado = ?"); params.append(args["estado"])
+        clauses.append("STATE_DESC = ?"); params.append(args["estado"])
     if args.get("cidade"):
-        clauses.append("cidade = ?"); params.append(args["cidade"])
+        clauses.append("CITY_DESC = ?"); params.append(args["cidade"])
     if args.get("brick"):
-        clauses.append("brick = ?"); params.append(args["brick"])
+        clauses.append("IMS_BRICK_DESC = ?"); params.append(args["brick"])
     if args.get("periodo_ini"):
-        clauses.append("periodo >= ?"); params.append(args["periodo_ini"])
+        clauses.append("PERIOD_CD >= ?"); params.append(args["periodo_ini"])
     if args.get("periodo_fim"):
-        clauses.append("periodo <= ?"); params.append(args["periodo_fim"])
+        clauses.append("PERIOD_CD <= ?"); params.append(args["periodo_fim"])
     return " AND ".join(clauses), tuple(params)
 
 # ── Filtros disponíveis ───────────────────────────────────────────────────
@@ -325,10 +325,10 @@ def filter_all():
     cached = cache_get("filters_all")
     if cached:
         return jsonify(cached)
-    mols     = query("SELECT DISTINCT molecula    FROM prescricoes WHERE molecula    IS NOT NULL ORDER BY molecula")
-    labs     = query("SELECT DISTINCT laboratorio FROM prescricoes WHERE laboratorio IS NOT NULL ORDER BY laboratorio")
-    estados  = query("SELECT DISTINCT estado      FROM prescricoes WHERE estado      IS NOT NULL ORDER BY estado")
-    periodos = query("SELECT DISTINCT periodo     FROM prescricoes WHERE periodo     IS NOT NULL ORDER BY periodo")
+    mols     = query("SELECT DISTINCT COMBINED_MOLECULE_DESC AS molecula    FROM prescricoes WHERE COMBINED_MOLECULE_DESC IS NOT NULL ORDER BY COMBINED_MOLECULE_DESC")
+    labs     = query("SELECT DISTINCT MANUFACTURER_DESC     AS laboratorio FROM prescricoes WHERE MANUFACTURER_DESC     IS NOT NULL ORDER BY MANUFACTURER_DESC")
+    estados  = query("SELECT DISTINCT STATE_DESC            AS estado       FROM prescricoes WHERE STATE_DESC            IS NOT NULL ORDER BY STATE_DESC")
+    periodos = query("SELECT DISTINCT PERIOD_CD             AS periodo      FROM prescricoes WHERE PERIOD_CD             IS NOT NULL ORDER BY PERIOD_CD")
     result = {
         "moleculas":    [r["molecula"]    for r in mols],
         "laboratorios": [r["laboratorio"] for r in labs],
@@ -343,7 +343,7 @@ def filter_all():
 def filter_moleculas():
     cached = cache_get("filter_moleculas")
     if cached: return jsonify(cached)
-    rows = query("SELECT DISTINCT molecula FROM prescricoes WHERE molecula IS NOT NULL ORDER BY molecula")
+    rows = query("SELECT DISTINCT COMBINED_MOLECULE_DESC AS molecula FROM prescricoes WHERE COMBINED_MOLECULE_DESC IS NOT NULL ORDER BY COMBINED_MOLECULE_DESC")
     data = [r["molecula"] for r in rows]
     cache_set("filter_moleculas", data)
     return jsonify(data)
@@ -355,11 +355,11 @@ def filter_laboratorios():
     mols = [m.strip() for m in mol_raw.split(",") if m.strip()]
     if mols:
         placeholders = ",".join(["?"] * len(mols))
-        rows = query(f"SELECT DISTINCT laboratorio FROM prescricoes WHERE molecula IN ({placeholders}) AND laboratorio IS NOT NULL ORDER BY laboratorio", tuple(mols))
+        rows = query(f"SELECT DISTINCT MANUFACTURER_DESC AS laboratorio FROM prescricoes WHERE COMBINED_MOLECULE_DESC IN ({placeholders}) AND MANUFACTURER_DESC IS NOT NULL ORDER BY MANUFACTURER_DESC", tuple(mols))
         return jsonify([r["laboratorio"] for r in rows])
     cached = cache_get("filter_laboratorios")
     if cached: return jsonify(cached)
-    rows = query("SELECT DISTINCT laboratorio FROM prescricoes WHERE laboratorio IS NOT NULL ORDER BY laboratorio")
+    rows = query("SELECT DISTINCT MANUFACTURER_DESC AS laboratorio FROM prescricoes WHERE MANUFACTURER_DESC IS NOT NULL ORDER BY MANUFACTURER_DESC")
     data = [r["laboratorio"] for r in rows]
     cache_set("filter_laboratorios", data)
     return jsonify(data)
@@ -369,7 +369,7 @@ def filter_laboratorios():
 def filter_estados():
     cached = cache_get("filter_estados")
     if cached: return jsonify(cached)
-    rows = query("SELECT DISTINCT estado FROM prescricoes WHERE estado IS NOT NULL ORDER BY estado")
+    rows = query("SELECT DISTINCT STATE_DESC AS estado FROM prescricoes WHERE STATE_DESC IS NOT NULL ORDER BY STATE_DESC")
     data = [r["estado"] for r in rows]
     cache_set("filter_estados", data)
     return jsonify(data)
@@ -379,7 +379,7 @@ def filter_estados():
 def filter_periodos():
     cached = cache_get("filter_periodos")
     if cached: return jsonify(cached)
-    rows = query("SELECT DISTINCT periodo FROM prescricoes WHERE periodo IS NOT NULL ORDER BY periodo")
+    rows = query("SELECT DISTINCT PERIOD_CD AS periodo FROM prescricoes WHERE PERIOD_CD IS NOT NULL ORDER BY PERIOD_CD")
     data = [r["periodo"] for r in rows]
     cache_set("filter_periodos", data)
     return jsonify(data)
@@ -389,11 +389,11 @@ def filter_periodos():
 def filter_cidades():
     estado = request.args.get("estado", "")
     if estado:
-        rows = query("SELECT DISTINCT cidade FROM prescricoes WHERE estado=? AND cidade IS NOT NULL ORDER BY cidade", (estado,))
+        rows = query("SELECT DISTINCT CITY_DESC AS cidade FROM prescricoes WHERE STATE_DESC=? AND CITY_DESC IS NOT NULL ORDER BY CITY_DESC", (estado,))
         return jsonify([r["cidade"] for r in rows])
     cached = cache_get("filter_cidades")
     if cached: return jsonify(cached)
-    rows = query("SELECT DISTINCT cidade FROM prescricoes WHERE cidade IS NOT NULL ORDER BY cidade")
+    rows = query("SELECT DISTINCT CITY_DESC AS cidade FROM prescricoes WHERE CITY_DESC IS NOT NULL ORDER BY CITY_DESC")
     data = [r["cidade"] for r in rows]
     cache_set("filter_cidades", data)
     return jsonify(data)
@@ -409,12 +409,12 @@ def market_kpis():
     if cached: return jsonify(cached)
     r = query(f"""
         SELECT
-            COALESCE(SUM(qtde_rec), 0)       AS total_receitas,
-            COALESCE(SUM(qtde_med), 0)       AS total_medicamentos,
-            COUNT(DISTINCT crm)              AS qtde_medicos,
-            COUNT(DISTINCT laboratorio)      AS qtde_laboratorios,
-            COUNT(DISTINCT marca)            AS qtde_marcas,
-            COUNT(DISTINCT molecula)         AS qtde_moleculas
+            COALESCE(SUM(RX_COUNT_TOTAL), 0)           AS total_receitas,
+            COALESCE(SUM(DISPENSED_QTY_TOTAL), 0)       AS total_medicamentos,
+            COUNT(DISTINCT DOCTOR_DISPLAY_CD)            AS qtde_medicos,
+            COUNT(DISTINCT MANUFACTURER_DESC)            AS qtde_laboratorios,
+            COUNT(DISTINCT BRAND_NAME)                   AS qtde_marcas,
+            COUNT(DISTINCT COMBINED_MOLECULE_DESC)       AS qtde_moleculas
         FROM prescricoes {w}
     """, params)
     cache_set(ck, r[0])
@@ -423,22 +423,28 @@ def market_kpis():
 @app.route("/api/market/share")
 @login_required
 def market_share():
+    _share_col_map = {
+        "laboratorio": "MANUFACTURER_DESC",
+        "marca":       "BRAND_NAME",
+        "molecula":    "COMBINED_MOLECULE_DESC",
+    }
     group_by = request.args.get("group_by", "laboratorio")
-    if group_by not in ("laboratorio", "marca", "molecula"):
+    if group_by not in _share_col_map:
         group_by = "laboratorio"
+    col = _share_col_map[group_by]
     filters, params = build_filters(request.args)
     w = f"WHERE {filters}" if filters else ""
     ck = f"share:{group_by}:{filters}:{params}"
     cached = cache_get(ck)
     if cached: return jsonify(cached)
     rows = query(f"""
-        SELECT {group_by} AS nome,
-               SUM(qtde_rec)                                        AS receitas,
-               SUM(qtde_med)                                        AS medicamentos,
-               COUNT(DISTINCT crm)                                  AS medicos,
-               ROUND(SUM(qtde_rec) * 100.0 / SUM(SUM(qtde_rec)) OVER (), 2) AS share
+        SELECT {col} AS nome,
+               SUM(RX_COUNT_TOTAL)                                               AS receitas,
+               SUM(DISPENSED_QTY_TOTAL)                                          AS medicamentos,
+               COUNT(DISTINCT DOCTOR_DISPLAY_CD)                                 AS medicos,
+               ROUND(SUM(RX_COUNT_TOTAL) * 100.0 / SUM(SUM(RX_COUNT_TOTAL)) OVER (), 2) AS share
         FROM prescricoes {w}
-        GROUP BY {group_by}
+        GROUP BY {col}
         ORDER BY receitas DESC
         LIMIT 15
     """, params)
@@ -454,12 +460,12 @@ def market_evolucao():
     cached = cache_get(ck)
     if cached: return jsonify(cached)
     rows = query(f"""
-        SELECT periodo,
-               SUM(qtde_rec)  AS receitas,
-               SUM(qtde_med)  AS medicamentos
+        SELECT PERIOD_CD                AS periodo,
+               SUM(RX_COUNT_TOTAL)     AS receitas,
+               SUM(DISPENSED_QTY_TOTAL) AS medicamentos
         FROM prescricoes {w}
-        GROUP BY periodo
-        ORDER BY periodo
+        GROUP BY PERIOD_CD
+        ORDER BY PERIOD_CD
     """, params)
     cache_set(ck, rows)
     return jsonify(rows)
@@ -467,21 +473,27 @@ def market_evolucao():
 @app.route("/api/market/geografico")
 @login_required
 def market_geografico():
+    _geo_col_map = {
+        "estado": "STATE_DESC",
+        "cidade": "CITY_DESC",
+        "brick":  "IMS_BRICK_DESC",
+    }
     group_by = request.args.get("group_by", "estado")
-    if group_by not in ("estado", "cidade", "brick"):
+    if group_by not in _geo_col_map:
         group_by = "estado"
+    col = _geo_col_map[group_by]
     filters, params = build_filters(request.args)
     w = f"WHERE {filters}" if filters else ""
     ck = f"geo:{group_by}:{filters}:{params}"
     cached = cache_get(ck)
     if cached: return jsonify(cached)
     rows = query(f"""
-        SELECT {group_by}            AS regiao,
-               SUM(qtde_rec)         AS receitas,
-               SUM(qtde_med)         AS medicamentos,
-               COUNT(DISTINCT crm)   AS medicos
+        SELECT {col}                         AS regiao,
+               SUM(RX_COUNT_TOTAL)           AS receitas,
+               SUM(DISPENSED_QTY_TOTAL)      AS medicamentos,
+               COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS medicos
         FROM prescricoes {w}
-        GROUP BY {group_by}
+        GROUP BY {col}
         ORDER BY receitas DESC
         LIMIT 20
     """, params)
@@ -499,13 +511,17 @@ def prescritores_ranking():
     cached = cache_get(ck)
     if cached: return jsonify(cached)
     rows = query(f"""
-        SELECT crm, medico, cidade, estado, brick,
-               SUM(qtde_rec)              AS total_receitas,
-               SUM(qtde_med)              AS total_medicamentos,
-               COUNT(DISTINCT laboratorio) AS qtde_labs,
-               COUNT(DISTINCT marca)       AS qtde_marcas
+        SELECT DOCTOR_DISPLAY_CD                                  AS crm,
+               TRIM(FIRST_NM) || ' ' || TRIM(SURNM_NM)           AS medico,
+               CITY_DESC                                          AS cidade,
+               STATE_DESC                                         AS estado,
+               IMS_BRICK_DESC                                     AS brick,
+               SUM(RX_COUNT_TOTAL)                                AS total_receitas,
+               SUM(DISPENSED_QTY_TOTAL)                           AS total_medicamentos,
+               COUNT(DISTINCT MANUFACTURER_DESC)                   AS qtde_labs,
+               COUNT(DISTINCT BRAND_NAME)                         AS qtde_marcas
         FROM prescricoes {w}
-        GROUP BY crm, medico, cidade, estado, brick
+        GROUP BY DOCTOR_DISPLAY_CD, FIRST_NM, SURNM_NM, CITY_DESC, STATE_DESC, IMS_BRICK_DESC
         ORDER BY total_receitas DESC
         LIMIT {limit}
     """, params)
@@ -516,20 +532,28 @@ def prescritores_ranking():
 @login_required
 def prescritor_perfil(crm_id):
     info = query("""
-        SELECT crm, medico, cidade, estado, brick,
-               SUM(qtde_rec) AS total_receitas,
-               SUM(qtde_med) AS total_medicamentos
-        FROM prescricoes WHERE crm=?
-        GROUP BY crm, medico, cidade, estado, brick
+        SELECT DOCTOR_DISPLAY_CD                             AS crm,
+               TRIM(FIRST_NM) || ' ' || TRIM(SURNM_NM)     AS medico,
+               CITY_DESC                                     AS cidade,
+               STATE_DESC                                    AS estado,
+               IMS_BRICK_DESC                                AS brick,
+               SUM(RX_COUNT_TOTAL)                          AS total_receitas,
+               SUM(DISPENSED_QTY_TOTAL)                     AS total_medicamentos
+        FROM prescricoes WHERE DOCTOR_DISPLAY_CD=?
+        GROUP BY DOCTOR_DISPLAY_CD, FIRST_NM, SURNM_NM, CITY_DESC, STATE_DESC, IMS_BRICK_DESC
     """, (crm_id,))
-    prescricoes = query("""
-        SELECT laboratorio, marca, molecula, periodo,
-               SUM(qtde_rec) AS receitas, SUM(qtde_med) AS medicamentos
-        FROM prescricoes WHERE crm=?
-        GROUP BY laboratorio, marca, molecula, periodo
+    prescricoes_det = query("""
+        SELECT MANUFACTURER_DESC      AS laboratorio,
+               BRAND_NAME             AS marca,
+               COMBINED_MOLECULE_DESC AS molecula,
+               PERIOD_CD              AS periodo,
+               SUM(RX_COUNT_TOTAL)    AS receitas,
+               SUM(DISPENSED_QTY_TOTAL) AS medicamentos
+        FROM prescricoes WHERE DOCTOR_DISPLAY_CD=?
+        GROUP BY MANUFACTURER_DESC, BRAND_NAME, COMBINED_MOLECULE_DESC, PERIOD_CD
         ORDER BY receitas DESC
     """, (crm_id,))
-    return jsonify({"info": info[0] if info else {}, "prescricoes": prescricoes})
+    return jsonify({"info": info[0] if info else {}, "prescricoes": prescricoes_det})
 
 @app.route("/api/prescritores/oportunidades")
 @login_required
@@ -542,23 +566,27 @@ def prescritores_oportunidades():
     cidade  = request.args.get("cidade", "")
     extra_clauses, extra_params = [], []
     if estado:
-        extra_clauses.append("estado = ?"); extra_params.append(estado)
+        extra_clauses.append("STATE_DESC = ?"); extra_params.append(estado)
     if cidade:
-        extra_clauses.append("cidade = ?"); extra_params.append(cidade)
+        extra_clauses.append("CITY_DESC = ?"); extra_params.append(cidade)
     extra_w = ("AND " + " AND ".join(extra_clauses)) if extra_clauses else ""
     # Médicos que prescrevem a molécula mas NÃO prescrevem o laboratório alvo
     rows = query(f"""
-        SELECT crm, medico, cidade, estado, brick,
-               SUM(qtde_rec) AS total_receitas,
-               SUM(qtde_med) AS total_medicamentos,
-               COUNT(DISTINCT laboratorio) AS qtde_labs
+        SELECT DOCTOR_DISPLAY_CD                              AS crm,
+               TRIM(FIRST_NM) || ' ' || TRIM(SURNM_NM)      AS medico,
+               CITY_DESC                                      AS cidade,
+               STATE_DESC                                     AS estado,
+               IMS_BRICK_DESC                                 AS brick,
+               SUM(RX_COUNT_TOTAL)                           AS total_receitas,
+               SUM(DISPENSED_QTY_TOTAL)                      AS total_medicamentos,
+               COUNT(DISTINCT MANUFACTURER_DESC)              AS qtde_labs
         FROM prescricoes
-        WHERE molecula=? {extra_w}
-          AND crm NOT IN (
-              SELECT DISTINCT crm FROM prescricoes
-              WHERE molecula=? AND laboratorio=?
+        WHERE COMBINED_MOLECULE_DESC=? {extra_w}
+          AND DOCTOR_DISPLAY_CD NOT IN (
+              SELECT DISTINCT DOCTOR_DISPLAY_CD FROM prescricoes
+              WHERE COMBINED_MOLECULE_DESC=? AND MANUFACTURER_DESC=?
           )
-        GROUP BY crm, medico, cidade, estado, brick
+        GROUP BY DOCTOR_DISPLAY_CD, FIRST_NM, SURNM_NM, CITY_DESC, STATE_DESC, IMS_BRICK_DESC
         ORDER BY total_receitas DESC
         LIMIT 200
     """, (molecula,) + tuple(extra_params) + (molecula, laboratorio))
@@ -591,10 +619,20 @@ def chat():
     query_tool = {
         "name": "query_database",
         "description": (
-            f"Executa SQL SELECT na tabela {TABLE_PRESC} (SQL Server). "
-            "Use TOP n em vez de LIMIT n. "
-            "Colunas: crm, medico, periodo (YYYYMM), canal, brick, cidade, estado, "
-            "laboratorio, marca, molecula, qtde_med (qtde medicamentos), qtde_rec (qtde receitas)."
+            f"Executa SQL SELECT na tabela {TABLE_PRESC} (Sybase IQ 16). "
+            "Use TOP n em vez de LIMIT n. Use || para concatenar strings. "
+            "Colunas disponíveis: "
+            "DOCTOR_DISPLAY_CD (CRM do médico), "
+            "FIRST_NM (primeiro nome do médico), SURNM_NM (sobrenome do médico), "
+            "PERIOD_CD (período inteiro YYYYMM), "
+            "CHANNEL_DESC (canal de venda), "
+            "IMS_BRICK_DESC (brick geográfico IMS), "
+            "CITY_DESC (cidade), STATE_DESC (estado), "
+            "MANUFACTURER_DESC (laboratório/fabricante), "
+            "BRAND_NAME (marca do produto), "
+            "COMBINED_MOLECULE_DESC (molécula/princípio ativo), "
+            "RX_COUNT_TOTAL (quantidade de receitas), "
+            "DISPENSED_QTY_TOTAL (quantidade de medicamentos dispensados)."
         ),
         "input_schema": {
             "type": "object",
@@ -699,8 +737,7 @@ def admin_load_post():
 def debug():
     result = {
         "use_http_api": USE_HTTP_API,
-        "api_host":     _DB_HOST,
-        "api_port":     _DB_PORT,
+        "agent_url":    _AGENT_URL,
         "table":        TABLE_PRESC,
         "table_prescricoes": False,
         "row_count": 0,
