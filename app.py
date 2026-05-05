@@ -207,9 +207,13 @@ def _df_to_table(df, table_name):
     df.to_sql(table_name, con, if_exists="replace", index=False)
     con.close()
 
-# ── Cache: L1 memória · L2 PostgreSQL (dados agregados mensais) ──────────
-# O chat continua executando SQL direto no SAP IQ via Java Agent.
-# Só os dados pré-agregados das abas Market e Prescritores são salvos aqui.
+# ── Cache: L0 JSON file · L1 memória · L2 PostgreSQL ─────────────────────
+# Chat: SQL direto no SAP IQ via Java Agent (sem cache).
+# Market + Prescritores: servidos de arquivos JSON estáticos no repo.
+#   → Nunca fazem query no carregamento da página.
+
+_STATIC_DASH = os.path.join(os.path.dirname(__file__), "data", "dashboard.json")
+_STATIC_RANK = os.path.join(os.path.dirname(__file__), "data", "ranking.json")
 
 _cache    = {}
 CACHE_TTL = 30 * 24 * 3600   # 30 dias
@@ -284,6 +288,37 @@ def pg_load_all():
     finally:
         conn.close()
 
+def _load_static_files():
+    """
+    L0 — carrega data/dashboard.json e data/ranking.json (commited no git).
+    Se os arquivos existirem, o dashboard fica pronto em <1 ms sem nenhuma query.
+    """
+    loaded = 0
+    if os.path.exists(_STATIC_DASH):
+        try:
+            with open(_STATIC_DASH, encoding="utf-8") as f:
+                dash = json.load(f)
+            cache_set("dash::::MANUFACTURER_DESC:STATE_DESC", dash)
+            gen = dash.get("generated_at", "?")
+            print(f"[static] dashboard.json carregado (gerado em {gen}).")
+            loaded += 1
+        except Exception as e:
+            print(f"[static] Erro ao carregar dashboard.json: {e}")
+    if os.path.exists(_STATIC_RANK):
+        try:
+            with open(_STATIC_RANK, encoding="utf-8") as f:
+                rank = json.load(f)
+            ranking = rank.get("ranking", rank) if isinstance(rank, dict) else rank
+            cache_set("ranking::():200", ranking)
+            gen = rank.get("generated_at", "?") if isinstance(rank, dict) else "?"
+            print(f"[static] ranking.json carregado (gerado em {gen}).")
+            loaded += 1
+        except Exception as e:
+            print(f"[static] Erro ao carregar ranking.json: {e}")
+    if loaded == 0:
+        print("[static] Nenhum arquivo JSON estático encontrado — usando prewarm.")
+    return loaded
+
 def cache_get(key):
     entry = _cache.get(key)
     if entry and (time.time() - entry["ts"]) < CACHE_TTL:
@@ -309,8 +344,10 @@ def cache_clear():
             conn.close()
 
 # Inicializa e carrega ao subir o servidor
+# Ordem: L0 arquivo JSON → L2 PostgreSQL → L3 prewarm SAP IQ
 _pg_init()
-pg_load_all()
+_load_static_files()   # carrega JSON do repo (mais rápido, sem rede)
+pg_load_all()          # complementa com entradas extras do PostgreSQL
 
 # ── Auth ──────────────────────────────────────────────────────────────────
 USERS = {
@@ -664,7 +701,7 @@ def dashboard_combined():
         for r in share_raw
     ]
 
-    # Geográfico
+    # Geográfico — ORDER BY expressão (Sybase IQ não aceita alias)
     geo = query(f"""
         SELECT {geo_col}                         AS regiao,
                SUM(RX_COUNT_TOTAL)               AS receitas,
@@ -672,7 +709,7 @@ def dashboard_combined():
                COUNT(DISTINCT DOCTOR_DISPLAY_CD)  AS medicos
         FROM prescricoes {w}
         GROUP BY {geo_col}
-        ORDER BY receitas DESC
+        ORDER BY SUM(RX_COUNT_TOTAL) DESC
         LIMIT 20
     """, params)
 
@@ -682,75 +719,231 @@ def dashboard_combined():
 
 
 def _prewarm_cache():
-    """Executa o dashboard sem filtros em background para pré-aquecer o cache."""
+    """
+    Roda automaticamente no startup em background.
+    Se os arquivos JSON estáticos (L0) ou PostgreSQL (L2) já popularam o cache,
+    pula as queries pesadas — o dashboard fica pronto em ms.
+    Só executa queries no SAP IQ se não houver dados em nenhuma camada.
+    """
     import threading
     def _run():
-        time.sleep(5)  # aguarda o servidor subir completamente
+        time.sleep(8)  # aguarda servidor subir + _load_static_files + pg_load_all
         try:
-            print("[cache] Pre-aquecendo dashboard e filtros...")
-            # Simula a query do dashboard completo sem filtros
+            print("[prewarm] Verificando cache...")
             with app.app_context():
-                # Filtros
-                ck_f = "filters_all"
-                if not cache_get(ck_f):
-                    mols     = query("SELECT DISTINCT COMBINED_MOLECULE_DESC AS molecula    FROM prescricoes WHERE COMBINED_MOLECULE_DESC IS NOT NULL ORDER BY COMBINED_MOLECULE_DESC")
-                    labs     = query("SELECT DISTINCT MANUFACTURER_DESC     AS laboratorio FROM prescricoes WHERE MANUFACTURER_DESC     IS NOT NULL ORDER BY MANUFACTURER_DESC")
-                    estados  = query("SELECT DISTINCT STATE_DESC            AS estado       FROM prescricoes WHERE STATE_DESC            IS NOT NULL ORDER BY STATE_DESC")
-                    periodos = query("SELECT DISTINCT PERIOD_CD             AS periodo      FROM prescricoes WHERE PERIOD_CD             IS NOT NULL ORDER BY PERIOD_CD")
-                    cache_set(ck_f, {
-                        "moleculas":    [r["molecula"]    for r in mols],
-                        "laboratorios": [r["laboratorio"] for r in labs],
-                        "estados":      [r["estado"]      for r in estados],
-                        "periodos":     [r["periodo"]     for r in periodos],
-                    })
-                    print("[cache] Filtros prontos.")
+                ck_d    = "dash::::MANUFACTURER_DESC:STATE_DESC"
+                ck_rank = "ranking::():200"
+                dash_ok    = cache_get(ck_d)    is not None
+                ranking_ok = cache_get(ck_rank) is not None
+
+                if dash_ok and ranking_ok:
+                    print("[prewarm] Cache já populado (JSON/PG) — nenhuma query necessária.")
+                    return
+
+                print("[prewarm] Cache incompleto — buscando dados do SAP IQ...")
 
                 # Dashboard principal (sem filtros)
-                ck_d = "dash::::MANUFACTURER_DESC:STATE_DESC"
-                if not cache_get(ck_d):
-                    # KPIs
-                    kpis_r = query("""
-                        SELECT COALESCE(SUM(RX_COUNT_TOTAL),0) AS total_receitas,
-                               COALESCE(SUM(DISPENSED_QTY_TOTAL),0) AS total_medicamentos,
-                               COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS qtde_medicos,
-                               COUNT(DISTINCT MANUFACTURER_DESC) AS qtde_laboratorios,
-                               COUNT(DISTINCT BRAND_NAME) AS qtde_marcas,
-                               COUNT(DISTINCT COMBINED_MOLECULE_DESC) AS qtde_moleculas
-                        FROM prescricoes
-                    """)
-                    evolucao = query("SELECT PERIOD_CD AS periodo, SUM(RX_COUNT_TOTAL) AS receitas, SUM(DISPENSED_QTY_TOTAL) AS medicamentos FROM prescricoes GROUP BY PERIOD_CD ORDER BY PERIOD_CD")
-                    share_raw = query("SELECT MANUFACTURER_DESC AS nome, SUM(RX_COUNT_TOTAL) AS receitas, SUM(DISPENSED_QTY_TOTAL) AS medicamentos, COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS medicos FROM prescricoes GROUP BY MANUFACTURER_DESC ORDER BY SUM(RX_COUNT_TOTAL) DESC LIMIT 15")
-                    total_rx = sum(r.get("receitas") or 0 for r in share_raw) or 1
-                    share = [{**r, "share": round((r.get("receitas") or 0)*100.0/total_rx, 2)} for r in share_raw]
-                    geo = query("SELECT STATE_DESC AS regiao, SUM(RX_COUNT_TOTAL) AS receitas, SUM(DISPENSED_QTY_TOTAL) AS medicamentos, COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS medicos FROM prescricoes GROUP BY STATE_DESC ORDER BY SUM(RX_COUNT_TOTAL) DESC LIMIT 20")
-                    cache_set(ck_d, {"kpis": kpis_r[0] if kpis_r else {}, "evolucao": evolucao, "share": share, "geo": geo})
-                    print("[cache] Dashboard pre-aquecido com sucesso.")
+                if not dash_ok:
+                    try:
+                        kpis_r = query("""
+                            SELECT COALESCE(SUM(RX_COUNT_TOTAL),0)       AS total_receitas,
+                                   COALESCE(SUM(DISPENSED_QTY_TOTAL),0)  AS total_medicamentos,
+                                   COUNT(DISTINCT DOCTOR_DISPLAY_CD)      AS qtde_medicos,
+                                   COUNT(DISTINCT MANUFACTURER_DESC)      AS qtde_laboratorios,
+                                   COUNT(DISTINCT BRAND_NAME)             AS qtde_marcas,
+                                   COUNT(DISTINCT COMBINED_MOLECULE_DESC) AS qtde_moleculas
+                            FROM prescricoes
+                        """)
+                        evolucao = query("""
+                            SELECT PERIOD_CD AS periodo,
+                                   SUM(RX_COUNT_TOTAL) AS receitas,
+                                   SUM(DISPENSED_QTY_TOTAL) AS medicamentos
+                            FROM prescricoes GROUP BY PERIOD_CD ORDER BY PERIOD_CD
+                        """)
+                        share_raw = query("""
+                            SELECT MANUFACTURER_DESC AS nome,
+                                   SUM(RX_COUNT_TOTAL) AS receitas,
+                                   SUM(DISPENSED_QTY_TOTAL) AS medicamentos,
+                                   COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS medicos
+                            FROM prescricoes
+                            GROUP BY MANUFACTURER_DESC
+                            ORDER BY SUM(RX_COUNT_TOTAL) DESC
+                            LIMIT 15
+                        """)
+                        total_rx = sum(r.get("receitas") or 0 for r in share_raw) or 1
+                        share = [{**r, "share": round((r.get("receitas") or 0)*100.0/total_rx, 2)} for r in share_raw]
+                        geo = query("""
+                            SELECT STATE_DESC AS regiao,
+                                   SUM(RX_COUNT_TOTAL) AS receitas,
+                                   SUM(DISPENSED_QTY_TOTAL) AS medicamentos,
+                                   COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS medicos
+                            FROM prescricoes
+                            GROUP BY STATE_DESC
+                            ORDER BY SUM(RX_COUNT_TOTAL) DESC
+                            LIMIT 20
+                        """)
+                        dash_data = {"kpis": kpis_r[0] if kpis_r else {}, "evolucao": evolucao, "share": share, "geo": geo}
+                        cache_set(ck_d, dash_data)
+                        # Salva também no arquivo JSON para próximos deploys
+                        try:
+                            os.makedirs(os.path.dirname(_STATIC_DASH), exist_ok=True)
+                            dash_data["generated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                            with open(_STATIC_DASH, "w", encoding="utf-8") as ff:
+                                json.dump(dash_data, ff, ensure_ascii=False, default=str)
+                            print("[prewarm] dashboard.json atualizado.")
+                        except Exception as we:
+                            print(f"[prewarm] Aviso: não foi possível salvar dashboard.json: {we}")
+                        print("[prewarm] Dashboard OK.")
+                    except Exception as e:
+                        print(f"[prewarm] Dashboard falhou: {e}")
 
-                # Ranking de prescritores (também pesado — pré-aquecer)
-                ck_rank = "ranking::():200"
-                if not cache_get(ck_rank):
-                    ranking = query("""
-                        SELECT DOCTOR_DISPLAY_CD                                AS crm,
-                               TRIM(FIRST_NM) || ' ' || TRIM(SURNM_NM)        AS medico,
-                               CITY_DESC AS cidade, STATE_DESC AS estado, IMS_BRICK_DESC AS brick,
-                               SUM(RX_COUNT_TOTAL)                             AS total_receitas,
-                               SUM(DISPENSED_QTY_TOTAL)                        AS total_medicamentos,
-                               COUNT(DISTINCT MANUFACTURER_DESC)                AS qtde_labs,
-                               COUNT(DISTINCT BRAND_NAME)                      AS qtde_marcas
-                        FROM prescricoes
-                        GROUP BY DOCTOR_DISPLAY_CD, FIRST_NM, SURNM_NM, CITY_DESC, STATE_DESC, IMS_BRICK_DESC
-                        ORDER BY SUM(RX_COUNT_TOTAL) DESC
-                        LIMIT 200
-                    """)
-                    cache_set(ck_rank, ranking)
-                    print(f"[cache] Ranking pre-aquecido: {len(ranking)} médicos.")
-                # Salva tudo no PostgreSQL — sobrevive a restarts e re-deploys
+                # Ranking de prescritores
+                if not ranking_ok:
+                    try:
+                        ranking = query("""
+                            SELECT DOCTOR_DISPLAY_CD                             AS crm,
+                                   TRIM(FIRST_NM) || ' ' || TRIM(SURNM_NM)     AS medico,
+                                   CITY_DESC AS cidade, STATE_DESC AS estado, IMS_BRICK_DESC AS brick,
+                                   SUM(RX_COUNT_TOTAL)                          AS total_receitas,
+                                   SUM(DISPENSED_QTY_TOTAL)                     AS total_medicamentos,
+                                   COUNT(DISTINCT MANUFACTURER_DESC)             AS qtde_labs,
+                                   COUNT(DISTINCT BRAND_NAME)                   AS qtde_marcas
+                            FROM prescricoes
+                            GROUP BY DOCTOR_DISPLAY_CD, FIRST_NM, SURNM_NM, CITY_DESC, STATE_DESC, IMS_BRICK_DESC
+                            ORDER BY SUM(RX_COUNT_TOTAL) DESC
+                            LIMIT 200
+                        """)
+                        cache_set(ck_rank, ranking)
+                        try:
+                            rank_data = {"ranking": ranking, "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+                            with open(_STATIC_RANK, "w", encoding="utf-8") as ff:
+                                json.dump(rank_data, ff, ensure_ascii=False, default=str)
+                            print("[prewarm] ranking.json atualizado.")
+                        except Exception as we:
+                            print(f"[prewarm] Aviso: não foi possível salvar ranking.json: {we}")
+                        print(f"[prewarm] Ranking OK: {len(ranking)} médicos.")
+                    except Exception as e:
+                        print(f"[prewarm] Ranking falhou: {e}")
+
+                # Persiste no PostgreSQL
                 pg_save_all()
         except Exception as e:
-            print(f"[cache] Pre-aquecimento falhou: {e}")
+            print(f"[prewarm] Erro geral: {e}")
     threading.Thread(target=_run, daemon=True).start()
 
 _prewarm_cache()
+
+# ── Admin: gerar dados estáticos ─────────────────────────────────────────
+@app.route("/admin/generate-static")
+@login_required
+def admin_generate_static():
+    """
+    Roda as queries no SAP IQ e salva data/dashboard.json + data/ranking.json.
+    Chamar após atualização mensal dos dados.
+    Retorna JSON com resumo do que foi gerado.
+    """
+    import threading, queue
+    result_q = queue.Queue()
+
+    def _gen():
+        report = {"ok": False, "erros": [], "dados": {}}
+        try:
+            now_utc = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+            # KPIs
+            kpis_r = query("""
+                SELECT COALESCE(SUM(RX_COUNT_TOTAL),0)       AS total_receitas,
+                       COALESCE(SUM(DISPENSED_QTY_TOTAL),0)  AS total_medicamentos,
+                       COUNT(DISTINCT DOCTOR_DISPLAY_CD)      AS qtde_medicos,
+                       COUNT(DISTINCT MANUFACTURER_DESC)      AS qtde_laboratorios,
+                       COUNT(DISTINCT BRAND_NAME)             AS qtde_marcas,
+                       COUNT(DISTINCT COMBINED_MOLECULE_DESC) AS qtde_moleculas
+                FROM prescricoes
+            """)
+            kpis = kpis_r[0] if kpis_r else {}
+
+            # Evolução
+            evolucao = query("""
+                SELECT PERIOD_CD AS periodo,
+                       SUM(RX_COUNT_TOTAL) AS receitas,
+                       SUM(DISPENSED_QTY_TOTAL) AS medicamentos
+                FROM prescricoes GROUP BY PERIOD_CD ORDER BY PERIOD_CD
+            """)
+
+            # Share
+            share_raw = query("""
+                SELECT MANUFACTURER_DESC AS nome,
+                       SUM(RX_COUNT_TOTAL) AS receitas,
+                       SUM(DISPENSED_QTY_TOTAL) AS medicamentos,
+                       COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS medicos
+                FROM prescricoes
+                GROUP BY MANUFACTURER_DESC
+                ORDER BY SUM(RX_COUNT_TOTAL) DESC
+                LIMIT 15
+            """)
+            total_rx = sum(r.get("receitas") or 0 for r in share_raw) or 1
+            share = [{**r, "share": round((r.get("receitas") or 0)*100.0/total_rx, 2)} for r in share_raw]
+
+            # Geo
+            geo = query("""
+                SELECT STATE_DESC AS regiao,
+                       SUM(RX_COUNT_TOTAL) AS receitas,
+                       SUM(DISPENSED_QTY_TOTAL) AS medicamentos,
+                       COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS medicos
+                FROM prescricoes
+                GROUP BY STATE_DESC
+                ORDER BY SUM(RX_COUNT_TOTAL) DESC
+                LIMIT 20
+            """)
+
+            dash_data = {
+                "kpis": kpis, "evolucao": evolucao,
+                "share": share, "geo": geo,
+                "generated_at": now_utc,
+            }
+            cache_set("dash::::MANUFACTURER_DESC:STATE_DESC", dash_data)
+            os.makedirs(os.path.dirname(_STATIC_DASH), exist_ok=True)
+            with open(_STATIC_DASH, "w", encoding="utf-8") as f:
+                json.dump(dash_data, f, ensure_ascii=False, default=str)
+            report["dados"]["dashboard"] = {
+                "periodos": len(evolucao), "labs": len(share), "estados": len(geo)
+            }
+
+            # Ranking
+            ranking = query("""
+                SELECT DOCTOR_DISPLAY_CD                             AS crm,
+                       TRIM(FIRST_NM) || ' ' || TRIM(SURNM_NM)     AS medico,
+                       CITY_DESC AS cidade, STATE_DESC AS estado, IMS_BRICK_DESC AS brick,
+                       SUM(RX_COUNT_TOTAL)                          AS total_receitas,
+                       SUM(DISPENSED_QTY_TOTAL)                     AS total_medicamentos,
+                       COUNT(DISTINCT MANUFACTURER_DESC)             AS qtde_labs,
+                       COUNT(DISTINCT BRAND_NAME)                   AS qtde_marcas
+                FROM prescricoes
+                GROUP BY DOCTOR_DISPLAY_CD, FIRST_NM, SURNM_NM, CITY_DESC, STATE_DESC, IMS_BRICK_DESC
+                ORDER BY SUM(RX_COUNT_TOTAL) DESC
+                LIMIT 200
+            """)
+            cache_set("ranking::():200", ranking)
+            rank_data = {"ranking": ranking, "generated_at": now_utc}
+            with open(_STATIC_RANK, "w", encoding="utf-8") as f:
+                json.dump(rank_data, f, ensure_ascii=False, default=str)
+            report["dados"]["ranking"] = {"medicos": len(ranking)}
+
+            # Persiste no PostgreSQL
+            pg_save_all()
+            report["ok"] = True
+            report["generated_at"] = now_utc
+        except Exception as e:
+            report["erros"].append(str(e))
+        result_q.put(report)
+
+    t = threading.Thread(target=_gen, daemon=True)
+    t.start()
+    t.join(timeout=300)   # espera até 5 min
+
+    if result_q.empty():
+        return jsonify({"ok": False, "erro": "Timeout ao gerar dados (>5 min)"}), 504
+    return jsonify(result_q.get())
 
 # ── Prescritores ──────────────────────────────────────────────────────────
 @app.route("/api/prescritores/ranking")
@@ -933,13 +1126,17 @@ def chat():
 # ── Admin: carga de dados ─────────────────────────────────────────────────
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "iqvia-admin-2026")
 
-@app.route("/admin/refresh-cache")
+@app.route("/api/status")
 @login_required
-def admin_refresh_cache():
-    """Limpa o cache (memória + PostgreSQL) e rebusca dados do SAP IQ."""
-    cache_clear()   # limpa memória + PostgreSQL
-    _prewarm_cache()
-    return jsonify({"status": "ok", "msg": "Cache limpo. Rebuscando dados do SAP IQ em background (~5 min). Use /api/dashboard para acompanhar."})
+def api_status():
+    """Informa se os dados já estão prontos no cache."""
+    dash_ok    = cache_get("dash::::MANUFACTURER_DESC:STATE_DESC") is not None
+    ranking_ok = cache_get("ranking::():200") is not None
+    return jsonify({
+        "dashboard_pronto": dash_ok,
+        "ranking_pronto":   ranking_ok,
+        "pronto":           dash_ok and ranking_ok,
+    })
 
 @app.route("/admin/load", methods=["GET"])
 @login_required
