@@ -125,10 +125,10 @@ def _api_call(sql):
     if _AGENT_API_KEY:
         hdrs["X-API-Key"] = _AGENT_API_KEY
     resp = requests.post(
-        f"{_AGENT_URL}/execute",
-        json={"sql": sql},
+        f"{_AGENT_URL}/query",
+        json={"sql": sql, "limit": 500},
         headers=hdrs,
-        verify=True,   # Cloudflare tem cert válido
+        verify=True,
         timeout=30
     )
     resp.raise_for_status()
@@ -710,34 +710,24 @@ def test_db():
         "steps": {}
     }
 
-    # 0. Descobrir endpoint correto do Java Agent
-    _paths = ["/execute", "/query", "/sql", "/api/execute", "/api/query", "/run"]
-    _endpoint = None
-    hdrs = {"Content-Type": "application/json"}
-    if _AGENT_API_KEY:
-        hdrs["X-API-Key"] = _AGENT_API_KEY
-    for p in _paths:
-        try:
-            r = requests.post(f"{_AGENT_URL}{p}", json={"sql": "SELECT 1"},
-                              headers=hdrs, verify=True, timeout=10)
-            if r.status_code != 404:
-                _endpoint = p
-                result["steps"]["0_endpoint"] = {"ok": True, "path": p, "status": r.status_code}
-                break
-        except Exception:
-            continue
-    if not _endpoint:
-        result["steps"]["0_endpoint"] = {"ok": False, "erro": "Nenhum endpoint respondeu — verificar Java Agent", "testados": _paths}
-        result["status"] = "FALHOU"
-        return jsonify(result)
+    # 1. Health check do agent
+    t0 = time.time()
+    try:
+        hdrs = {"X-API-Key": _AGENT_API_KEY} if _AGENT_API_KEY else {}
+        h = requests.get(f"{_AGENT_URL}/health", headers=hdrs, verify=True, timeout=10)
+        result["steps"]["1_health"] = {"ok": h.status_code == 200, "status": h.status_code,
+                                       "resposta": h.json() if h.headers.get("content-type","").startswith("application/json") else h.text,
+                                       "ms": round((time.time()-t0)*1000)}
+    except Exception as e:
+        result["steps"]["1_health"] = {"ok": False, "erro": str(e), "ms": round((time.time()-t0)*1000)}
 
-    # 1. Ping via SELECT 1
+    # 2. Ping via SELECT 1
     t0 = time.time()
     try:
         rows = query("SELECT 1 AS ping")
-        result["steps"]["1_ping"] = {"ok": True, "resposta": rows, "ms": round((time.time()-t0)*1000)}
+        result["steps"]["2_ping"] = {"ok": True, "resposta": rows, "ms": round((time.time()-t0)*1000)}
     except Exception as e:
-        result["steps"]["1_ping"] = {"ok": False, "erro": str(e), "ms": round((time.time()-t0)*1000)}
+        result["steps"]["2_ping"] = {"ok": False, "erro": str(e), "ms": round((time.time()-t0)*1000)}
         result["status"] = "FALHOU"
         return jsonify(result)
 
@@ -745,25 +735,25 @@ def test_db():
     t0 = time.time()
     try:
         existe = table_exists("prescricoes")
-        result["steps"]["2_tabela"] = {"ok": existe, "ms": round((time.time()-t0)*1000)}
+        result["steps"]["3_tabela"] = {"ok": existe, "ms": round((time.time()-t0)*1000)}
     except Exception as e:
-        result["steps"]["2_tabela"] = {"ok": False, "erro": str(e)}
+        result["steps"]["3_tabela"] = {"ok": False, "erro": str(e)}
 
-    # 3. Contagem de linhas
+    # 4. Contagem de linhas
     t0 = time.time()
     try:
         r = query(f"SELECT COUNT(*) AS cnt FROM {TABLE_PRESC}")
-        result["steps"]["3_contagem"] = {"ok": True, "total_linhas": r[0]["cnt"], "ms": round((time.time()-t0)*1000)}
+        result["steps"]["4_contagem"] = {"ok": True, "total_linhas": r[0]["cnt"], "ms": round((time.time()-t0)*1000)}
     except Exception as e:
-        result["steps"]["3_contagem"] = {"ok": False, "erro": str(e)}
+        result["steps"]["4_contagem"] = {"ok": False, "erro": str(e)}
 
-    # 4. Amostra de colunas (TOP 1)
+    # 5. Amostra de colunas (TOP 1)
     t0 = time.time()
     try:
         r = query(f"SELECT TOP 1 * FROM {TABLE_PRESC}")
-        result["steps"]["4_amostra"] = {"ok": True, "colunas": list(r[0].keys()) if r else [], "ms": round((time.time()-t0)*1000)}
+        result["steps"]["5_amostra"] = {"ok": True, "colunas": list(r[0].keys()) if r else [], "ms": round((time.time()-t0)*1000)}
     except Exception as e:
-        result["steps"]["4_amostra"] = {"ok": False, "erro": str(e)}
+        result["steps"]["5_amostra"] = {"ok": False, "erro": str(e)}
 
     result["status"] = "OK" if all(v.get("ok") for v in result["steps"].values()) else "PARCIAL"
     return jsonify(result)
