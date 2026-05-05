@@ -120,7 +120,7 @@ def _inline_params(sql, params):
     return sql
 
 def _api_call(sql):
-    """Envia SQL ao Java Agent via Cloudflare Tunnel."""
+    """Envia SQL ao Java Agent via Cloudflare Tunnel e retorna lista de dicts."""
     hdrs = {"Content-Type": "application/json"}
     if _AGENT_API_KEY:
         hdrs["X-API-Key"] = _AGENT_API_KEY
@@ -129,15 +129,33 @@ def _api_call(sql):
         json={"sql": sql, "limit": 500},
         headers=hdrs,
         verify=True,
-        timeout=30
+        timeout=60
     )
     resp.raise_for_status()
     data = resp.json()
+
+    # Formato A: {"columns": [...], "rows": [[...], ...]}
+    if isinstance(data, dict) and "columns" in data and "rows" in data:
+        cols = data["columns"]
+        return [dict(zip(cols, row)) for row in data["rows"]]
+
+    # Formato B: [[col1, col2, ...], [val1, val2, ...], ...]  (1ª linha = cabeçalho)
+    if isinstance(data, list) and data and isinstance(data[0], list):
+        if len(data) == 1:
+            # só uma linha de valores — sem header
+            return [{"col_" + str(i): v for i, v in enumerate(data[0])}]
+        cols = [str(c) for c in data[0]]
+        return [dict(zip(cols, row)) for row in data[1:]]
+
+    # Formato C: [{"col": val}, ...]  (já é lista de dicts)
     if isinstance(data, list):
         return data
+
+    # Formato D: wrapper com chave conhecida
     for key in ("rows", "data", "results", "result"):
         if isinstance(data.get(key), list):
             return data[key]
+
     return []
 
 def query(sql, params=()):
@@ -743,17 +761,22 @@ def test_db():
     t0 = time.time()
     try:
         r = query(f"SELECT COUNT(*) AS cnt FROM {TABLE_PRESC}")
-        result["steps"]["4_contagem"] = {"ok": True, "total_linhas": r[0]["cnt"], "ms": round((time.time()-t0)*1000)}
+        cnt = list(r[0].values())[0] if r else 0
+        result["steps"]["4_contagem"] = {"ok": True, "total_linhas": cnt, "ms": round((time.time()-t0)*1000)}
     except Exception as e:
         result["steps"]["4_contagem"] = {"ok": False, "erro": str(e)}
 
-    # 5. Amostra de colunas (TOP 1)
+    # 5. Colunas da tabela via /schema
     t0 = time.time()
     try:
-        r = query(f"SELECT TOP 1 * FROM {TABLE_PRESC}")
-        result["steps"]["5_amostra"] = {"ok": True, "colunas": list(r[0].keys()) if r else [], "ms": round((time.time()-t0)*1000)}
+        hdrs = {"X-API-Key": _AGENT_API_KEY} if _AGENT_API_KEY else {}
+        sr = requests.get(f"{_AGENT_URL}/schema/PBS_AI_ANALYTICS",
+                          headers=hdrs, verify=True, timeout=15)
+        result["steps"]["5_schema"] = {"ok": sr.status_code == 200,
+                                       "colunas": sr.json() if sr.ok else sr.text,
+                                       "ms": round((time.time()-t0)*1000)}
     except Exception as e:
-        result["steps"]["5_amostra"] = {"ok": False, "erro": str(e)}
+        result["steps"]["5_schema"] = {"ok": False, "erro": str(e)}
 
     result["status"] = "OK" if all(v.get("ok") for v in result["steps"].values()) else "PARCIAL"
     return jsonify(result)
