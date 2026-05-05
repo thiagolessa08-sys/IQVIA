@@ -4,12 +4,6 @@ import sqlite3, os, requests, json, re, time
 from datetime import datetime
 import pandas as pd
 import urllib3
-try:
-    import psycopg2
-    import psycopg2.extras
-    _PSYCOPG2_OK = True
-except ImportError:
-    _PSYCOPG2_OK = False
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = Flask(__name__)
@@ -218,75 +212,6 @@ _STATIC_RANK = os.path.join(os.path.dirname(__file__), "data", "ranking.json")
 _cache    = {}
 CACHE_TTL = 30 * 24 * 3600   # 30 dias
 
-_PG_URL = os.environ.get("DATABASE_URL", "")
-
-def _pg_conn():
-    """Abre conexão com o PostgreSQL do Railway."""
-    if not _PSYCOPG2_OK or not _PG_URL:
-        return None
-    try:
-        return psycopg2.connect(_PG_URL, connect_timeout=5)
-    except Exception as e:
-        print(f"[pg] Falha ao conectar: {e}")
-        return None
-
-def _pg_init():
-    """Cria tabela de cache no Postgres se não existir."""
-    conn = _pg_conn()
-    if not conn:
-        return
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS pharma_cache (
-                        key     TEXT PRIMARY KEY,
-                        data    JSONB NOT NULL,
-                        saved_at TIMESTAMPTZ DEFAULT NOW()
-                    )
-                """)
-        print("[pg] Tabela pharma_cache OK.")
-    except Exception as e:
-        print(f"[pg] Erro ao criar tabela: {e}")
-    finally:
-        conn.close()
-
-def pg_save_all():
-    """Salva todo o cache de memória no PostgreSQL (chamado após prewarm)."""
-    conn = _pg_conn()
-    if not conn:
-        return
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                for key, entry in _cache.items():
-                    cur.execute("""
-                        INSERT INTO pharma_cache (key, data) VALUES (%s, %s)
-                        ON CONFLICT (key) DO UPDATE
-                            SET data = EXCLUDED.data, saved_at = NOW()
-                    """, (key, json.dumps(entry["data"], default=str)))
-        print(f"[pg] {len(_cache)} entradas salvas no PostgreSQL.")
-    except Exception as e:
-        print(f"[pg] Erro ao salvar: {e}")
-    finally:
-        conn.close()
-
-def pg_load_all():
-    """Carrega todos os dados do PostgreSQL para a memória no startup."""
-    conn = _pg_conn()
-    if not conn:
-        return
-    try:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute("SELECT key, data FROM pharma_cache")
-            rows = cur.fetchall()
-        for row in rows:
-            _cache[row["key"]] = {"data": row["data"], "ts": time.time()}
-        print(f"[pg] {len(rows)} entradas carregadas do PostgreSQL → cache pronto.")
-    except Exception as e:
-        print(f"[pg] Erro ao carregar: {e}")
-    finally:
-        conn.close()
 
 def _load_static_files():
     """
@@ -330,24 +255,10 @@ def cache_set(key, data):
 
 def cache_clear():
     _cache.clear()
-    # Limpa também no Postgres
-    conn = _pg_conn()
-    if conn:
-        try:
-            with conn:
-                with conn.cursor() as cur:
-                    cur.execute("DELETE FROM pharma_cache")
-            print("[pg] Cache limpo no PostgreSQL.")
-        except Exception as e:
-            print(f"[pg] Erro ao limpar: {e}")
-        finally:
-            conn.close()
 
 # Inicializa e carrega ao subir o servidor
-# Ordem: L0 arquivo JSON → L2 PostgreSQL → L3 prewarm SAP IQ
-_pg_init()
-_load_static_files()   # carrega JSON do repo (mais rápido, sem rede)
-pg_load_all()          # complementa com entradas extras do PostgreSQL
+# Ordem: L0 arquivo JSON → L1 memória → prewarm SAP IQ (só se necessário)
+_load_static_files()   # carrega JSON do repo em <1ms, sem rede
 
 # ── Auth ──────────────────────────────────────────────────────────────────
 USERS = {
@@ -727,7 +638,7 @@ def _prewarm_cache():
     """
     import threading
     def _run():
-        time.sleep(8)  # aguarda servidor subir + _load_static_files + pg_load_all
+        time.sleep(8)  # aguarda servidor subir + _load_static_files
         try:
             print("[prewarm] Verificando cache...")
             with app.app_context():
@@ -825,8 +736,6 @@ def _prewarm_cache():
                     except Exception as e:
                         print(f"[prewarm] Ranking falhou: {e}")
 
-                # Persiste no PostgreSQL
-                pg_save_all()
         except Exception as e:
             print(f"[prewarm] Erro geral: {e}")
     threading.Thread(target=_run, daemon=True).start()
@@ -929,8 +838,6 @@ def admin_generate_static():
                 json.dump(rank_data, f, ensure_ascii=False, default=str)
             report["dados"]["ranking"] = {"medicos": len(ranking)}
 
-            # Persiste no PostgreSQL
-            pg_save_all()
             report["ok"] = True
             report["generated_at"] = now_utc
         except Exception as e:
