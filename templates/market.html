@@ -323,36 +323,27 @@
     <div class="card c-8">
       <div class="card-head">
         <h3>Evolução de Prescrições</h3>
-        <div class="tabs">
-          <button class="on" onclick="setShareGroup('laboratorio',this)">Lab</button>
-          <button onclick="setShareGroup('marca',this)">Marca</button>
-          <button onclick="setShareGroup('molecula',this)">Molécula</button>
-        </div>
       </div>
       <div style="position:relative;height:220px"><canvas id="chartEvolucao"></canvas></div>
     </div>
 
     <!-- SHARE DONUT -->
     <div class="card c-4">
-      <div class="card-head"><h3 id="shareTblTitle">Market Share · Labs</h3></div>
+      <div class="card-head"><h3>Market Share · Labs</h3></div>
       <div style="position:relative;height:220px"><canvas id="chartShare"></canvas></div>
     </div>
 
     <!-- GEO BARS -->
     <div class="card c-5">
       <div class="card-head">
-        <h3>Análise Geográfica</h3>
-        <div class="tabs">
-          <button class="on" onclick="setGeoGroup('estado',this)">Estado</button>
-          <button onclick="setGeoGroup('cidade',this)">Cidade</button>
-        </div>
+        <h3>Análise Geográfica · Estados</h3>
       </div>
       <div id="geoList"><div class="loading"><div class="spinner"></div></div></div>
     </div>
 
     <!-- SHARE TABLE -->
     <div class="card c-7">
-      <div class="card-head"><h3 id="rankTblTitle">Ranking por Laboratório</h3></div>
+      <div class="card-head"><h3>Ranking por Laboratório</h3></div>
       <div class="tbl-wrap" id="shareTable"><div class="loading"><div class="spinner"></div> Carregando...</div></div>
     </div>
 
@@ -362,7 +353,7 @@
 
 <script>
 const COLORS_HEX=['#1a56db','#2563eb','#0891b2','#7c3aed','#059669','#1e40af','#0e7490','#4f46e5','#0369a1','#0284c7'];
-let shareGroup='laboratorio',geoGroup='estado',charts={};
+let charts={};
 
 function fmt(n){
   if(n==null)return'—';
@@ -451,7 +442,7 @@ function renderShare(data){
   });
   const max=data[0]?.receitas||1;
   document.getElementById('shareTable').innerHTML=`<table>
-    <thead><tr><th>#</th><th>${shareGroup.charAt(0).toUpperCase()+shareGroup.slice(1)}</th><th>Receitas</th><th>Share</th></tr></thead>
+    <thead><tr><th>#</th><th>Laboratório</th><th>Receitas</th><th>Share</th></tr></thead>
     <tbody>${data.map((r,i)=>`<tr>
       <td><span class="badge badge-blue">${i+1}</span></td>
       <td><strong>${r.nome||'—'}</strong></td>
@@ -479,60 +470,15 @@ function renderGeo(data){
     </div>`).join('');
 }
 
-/* ── Tabs de share e geo (chamam endpoint individual por ser rápido pós-cache) */
-function setShareGroup(g,el){
-  shareGroup=g;
-  el.closest('.tabs').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===el));
-  const titles={laboratorio:'Market Share · Labs',marca:'Market Share · Marcas',molecula:'Market Share · Moléculas'};
-  const rTitles={laboratorio:'Ranking por Laboratório',marca:'Ranking por Marca',molecula:'Ranking por Molécula'};
-  document.getElementById('shareTblTitle').textContent=titles[g];
-  document.getElementById('rankTblTitle').textContent=rTitles[g];
-  loadShare();
-}
-async function loadShare(){
-  try{
-    const p=new URLSearchParams(params());p.set('group_by',shareGroup);
-    renderShare(await get('/api/market/share?'+p));
-  }catch(e){console.warn('loadShare err',e);}
-}
-
-function setGeoGroup(g,el){
-  geoGroup=g;
-  el.closest('.tabs').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===el));
-  loadGeo();
-}
-async function loadGeo(){
-  try{
-    const p=new URLSearchParams(params());p.set('group_by',geoGroup);
-    renderGeo(await get('/api/market/geografico?'+p));
-  }catch(e){console.warn('loadGeo err',e);}
-}
-
-/* ── Dashboard combinado: 1 request = KPIs + evolução + share + geo ──── */
+/* ── Dashboard: lê arquivo estático, sem queries ao vivo ──────────────── */
 async function loadAll(){
-  const p=new URLSearchParams(params());
-  p.set('group_by_share', shareGroup);
-  p.set('group_by_geo',   geoGroup);
-
-  /* Tenta o endpoint combinado primeiro (mais rápido) */
-  const d = await get('/api/dashboard?'+p, 120000);
+  const d = await get('/api/dashboard', 30000);
   if(d && (d.kpis || d.evolucao || d.share || d.geo)){
     if(d.kpis)    renderKPIs(d.kpis);
     if(d.evolucao)renderEvolucao(d.evolucao);
     if(d.share)   renderShare(d.share);
     if(d.geo)     renderGeo(d.geo);
-    return;
   }
-
-  /* Fallback: endpoints individuais em paralelo, cada um renderiza ao chegar */
-  console.info('[loadAll] fallback para endpoints individuais');
-  const qs = params().toString();
-  await Promise.allSettled([
-    get('/api/market/kpis?'+qs).then(r=>r&&renderKPIs(r)),
-    get('/api/market/evolucao?'+qs).then(r=>r&&renderEvolucao(r)),
-    get('/api/market/share?'+qs+'&group_by='+shareGroup).then(r=>r&&renderShare(r)),
-    get('/api/market/geografico?'+qs+'&group_by='+geoGroup).then(r=>r&&renderGeo(r)),
-  ]);
 }
 
 // Theme toggle
