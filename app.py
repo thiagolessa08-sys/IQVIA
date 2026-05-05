@@ -437,17 +437,20 @@ def market_share():
     ck = f"share:{group_by}:{filters}:{params}"
     cached = cache_get(ck)
     if cached: return jsonify(cached)
+    # ORDER BY expressão (não alias) — Sybase IQ não aceita ORDER BY alias
+    # Share calculado em Python para evitar window function SUM(SUM()) OVER ()
     rows = query(f"""
-        SELECT {col} AS nome,
-               SUM(RX_COUNT_TOTAL)                                               AS receitas,
-               SUM(DISPENSED_QTY_TOTAL)                                          AS medicamentos,
-               COUNT(DISTINCT DOCTOR_DISPLAY_CD)                                 AS medicos,
-               ROUND(SUM(RX_COUNT_TOTAL) * 100.0 / SUM(SUM(RX_COUNT_TOTAL)) OVER (), 2) AS share
+        SELECT {col}                              AS nome,
+               SUM(RX_COUNT_TOTAL)               AS receitas,
+               SUM(DISPENSED_QTY_TOTAL)           AS medicamentos,
+               COUNT(DISTINCT DOCTOR_DISPLAY_CD)  AS medicos
         FROM prescricoes {w}
         GROUP BY {col}
-        ORDER BY receitas DESC
+        ORDER BY SUM(RX_COUNT_TOTAL) DESC
         LIMIT 15
     """, params)
+    total_rx = sum(r.get("receitas") or 0 for r in rows) or 1
+    rows = [{**r, "share": round((r.get("receitas") or 0) * 100.0 / total_rx, 2)} for r in rows]
     cache_set(ck, rows)
     return jsonify(rows)
 
@@ -494,7 +497,7 @@ def market_geografico():
                COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS medicos
         FROM prescricoes {w}
         GROUP BY {col}
-        ORDER BY receitas DESC
+        ORDER BY SUM(RX_COUNT_TOTAL) DESC
         LIMIT 20
     """, params)
     cache_set(ck, rows)
@@ -557,7 +560,7 @@ def dashboard_combined():
                COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS medicos
         FROM prescricoes {w}
         GROUP BY {share_col}
-        ORDER BY receitas DESC
+        ORDER BY SUM(RX_COUNT_TOTAL) DESC
         LIMIT 15
     """, params)
     total_rx = sum(r.get("receitas") or 0 for r in share_raw) or 1
@@ -621,10 +624,10 @@ def _prewarm_cache():
                         FROM prescricoes
                     """)
                     evolucao = query("SELECT PERIOD_CD AS periodo, SUM(RX_COUNT_TOTAL) AS receitas, SUM(DISPENSED_QTY_TOTAL) AS medicamentos FROM prescricoes GROUP BY PERIOD_CD ORDER BY PERIOD_CD")
-                    share_raw = query("SELECT MANUFACTURER_DESC AS nome, SUM(RX_COUNT_TOTAL) AS receitas, SUM(DISPENSED_QTY_TOTAL) AS medicamentos, COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS medicos FROM prescricoes GROUP BY MANUFACTURER_DESC ORDER BY receitas DESC LIMIT 15")
+                    share_raw = query("SELECT MANUFACTURER_DESC AS nome, SUM(RX_COUNT_TOTAL) AS receitas, SUM(DISPENSED_QTY_TOTAL) AS medicamentos, COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS medicos FROM prescricoes GROUP BY MANUFACTURER_DESC ORDER BY SUM(RX_COUNT_TOTAL) DESC LIMIT 15")
                     total_rx = sum(r.get("receitas") or 0 for r in share_raw) or 1
                     share = [{**r, "share": round((r.get("receitas") or 0)*100.0/total_rx, 2)} for r in share_raw]
-                    geo = query("SELECT STATE_DESC AS regiao, SUM(RX_COUNT_TOTAL) AS receitas, SUM(DISPENSED_QTY_TOTAL) AS medicamentos, COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS medicos FROM prescricoes GROUP BY STATE_DESC ORDER BY receitas DESC LIMIT 20")
+                    geo = query("SELECT STATE_DESC AS regiao, SUM(RX_COUNT_TOTAL) AS receitas, SUM(DISPENSED_QTY_TOTAL) AS medicamentos, COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS medicos FROM prescricoes GROUP BY STATE_DESC ORDER BY SUM(RX_COUNT_TOTAL) DESC LIMIT 20")
                     cache_set(ck_d, {"kpis": kpis_r[0] if kpis_r else {}, "evolucao": evolucao, "share": share, "geo": geo})
                     print("[cache] Dashboard pre-aquecido com sucesso.")
         except Exception as e:
@@ -655,7 +658,7 @@ def prescritores_ranking():
                COUNT(DISTINCT BRAND_NAME)                         AS qtde_marcas
         FROM prescricoes {w}
         GROUP BY DOCTOR_DISPLAY_CD, FIRST_NM, SURNM_NM, CITY_DESC, STATE_DESC, IMS_BRICK_DESC
-        ORDER BY total_receitas DESC
+        ORDER BY SUM(RX_COUNT_TOTAL) DESC
         LIMIT {limit}
     """, params)
     cache_set(ck, rows)
@@ -684,7 +687,7 @@ def prescritor_perfil(crm_id):
                SUM(DISPENSED_QTY_TOTAL) AS medicamentos
         FROM prescricoes WHERE DOCTOR_DISPLAY_CD=?
         GROUP BY MANUFACTURER_DESC, BRAND_NAME, COMBINED_MOLECULE_DESC, PERIOD_CD
-        ORDER BY receitas DESC
+        ORDER BY SUM(RX_COUNT_TOTAL) DESC
     """, (crm_id,))
     return jsonify({"info": info[0] if info else {}, "prescricoes": prescricoes_det})
 
@@ -720,7 +723,7 @@ def prescritores_oportunidades():
               WHERE COMBINED_MOLECULE_DESC=? AND MANUFACTURER_DESC=?
           )
         GROUP BY DOCTOR_DISPLAY_CD, FIRST_NM, SURNM_NM, CITY_DESC, STATE_DESC, IMS_BRICK_DESC
-        ORDER BY total_receitas DESC
+        ORDER BY SUM(RX_COUNT_TOTAL) DESC
         LIMIT 200
     """, (molecula,) + tuple(extra_params) + (molecula, laboratorio))
     return jsonify(rows)

@@ -608,28 +608,29 @@ async function loadGeo(){
 
 /* ── Dashboard combinado: 1 request = KPIs + evolução + share + geo ──── */
 async function loadAll(){
-  try{
-    const p=new URLSearchParams(params());
-    p.set('group_by_share', shareGroup);
-    p.set('group_by_geo',   geoGroup);
-    const d=await get('/api/dashboard?'+p);
-    if(!d){
-      /* fallback: endpoints individuais */
-      await Promise.allSettled([
-        get('/api/market/kpis?'+params()).then(renderKPIs),
-        get('/api/market/evolucao?'+params()).then(renderEvolucao),
-        get('/api/market/share?'+params()+'&group_by='+shareGroup).then(renderShare),
-        get('/api/market/geografico?'+params()+'&group_by='+geoGroup).then(renderGeo),
-      ]);
-      return;
-    }
-    renderKPIs(d.kpis);
-    renderEvolucao(d.evolucao);
-    renderShare(d.share);
-    renderGeo(d.geo);
-  }catch(e){
-    console.warn('loadAll err',e);
+  const p=new URLSearchParams(params());
+  p.set('group_by_share', shareGroup);
+  p.set('group_by_geo',   geoGroup);
+
+  /* Tenta o endpoint combinado primeiro (mais rápido) */
+  const d = await get('/api/dashboard?'+p, 120000);
+  if(d && (d.kpis || d.evolucao || d.share || d.geo)){
+    if(d.kpis)    renderKPIs(d.kpis);
+    if(d.evolucao)renderEvolucao(d.evolucao);
+    if(d.share)   renderShare(d.share);
+    if(d.geo)     renderGeo(d.geo);
+    return;
   }
+
+  /* Fallback: endpoints individuais em paralelo, cada um renderiza ao chegar */
+  console.info('[loadAll] fallback para endpoints individuais');
+  const qs = params().toString();
+  await Promise.allSettled([
+    get('/api/market/kpis?'+qs).then(r=>r&&renderKPIs(r)),
+    get('/api/market/evolucao?'+qs).then(r=>r&&renderEvolucao(r)),
+    get('/api/market/share?'+qs+'&group_by='+shareGroup).then(r=>r&&renderShare(r)),
+    get('/api/market/geografico?'+qs+'&group_by='+geoGroup).then(r=>r&&renderGeo(r)),
+  ]);
 }
 
 // Theme toggle
