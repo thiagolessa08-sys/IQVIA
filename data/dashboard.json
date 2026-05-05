@@ -1,0 +1,312 @@
+﻿{
+    "kpis":  {
+                 "total_receitas":  113507384,
+                 "total_medicamentos":  186039297,
+                 "qtde_medicos":  850371,
+                 "qtde_laboratorios":  193,
+                 "qtde_marcas":  955,
+                 "qtde_moleculas":  275
+             },
+    "evolucao":  [
+                     {
+                         "periodo":  202501,
+                         "receitas":  7896706,
+                         "medicamentos":  12372315
+                     },
+                     {
+                         "periodo":  202502,
+                         "receitas":  7798626,
+                         "medicamentos":  12682386
+                     },
+                     {
+                         "periodo":  202503,
+                         "receitas":  8280312,
+                         "medicamentos":  13437070
+                     },
+                     {
+                         "periodo":  202504,
+                         "receitas":  8063504,
+                         "medicamentos":  13131599
+                     },
+                     {
+                         "periodo":  202505,
+                         "receitas":  8094847,
+                         "medicamentos":  13378923
+                     },
+                     {
+                         "periodo":  202506,
+                         "receitas":  7999032,
+                         "medicamentos":  13237991
+                     },
+                     {
+                         "periodo":  202507,
+                         "receitas":  8307250,
+                         "medicamentos":  13719298
+                     },
+                     {
+                         "periodo":  202508,
+                         "receitas":  8351689,
+                         "medicamentos":  13782938
+                     },
+                     {
+                         "periodo":  202509,
+                         "receitas":  8100059,
+                         "medicamentos":  13320137
+                     },
+                     {
+                         "periodo":  202510,
+                         "receitas":  8456139,
+                         "medicamentos":  13859959
+                     },
+                     {
+                         "periodo":  202511,
+                         "receitas":  8037526,
+                         "medicamentos":  13303413
+                     },
+                     {
+                         "periodo":  202512,
+                         "receitas":  8442571,
+                         "medicamentos":  14058820
+                     },
+                     {
+                         "periodo":  202601,
+                         "receitas":  8030409,
+                         "medicamentos":  13065276
+                     },
+                     {
+                         "periodo":  202602,
+                         "receitas":  7648714,
+                         "medicamentos":  12689172
+                     }
+                 ],
+    "share":  [
+                  {
+                      "nome":  "EUROFARMA",
+                      "receitas":  18011997,
+                      "medicamentos":  25961445,
+                      "medicos":  648244,
+                      "share":  20.84
+                  },
+                  {
+                      "nome":  "EMS",
+                      "receitas":  13870907,
+                      "medicamentos":  21188379,
+                      "medicos":  623788,
+                      "share":  16.05
+                  },
+                  {
+                      "nome":  "MEDLEY",
+                      "receitas":  13610515,
+                      "medicamentos":  23374164,
+                      "medicos":  622384,
+                      "share":  15.75
+                  },
+                  {
+                      "nome":  "ACHE",
+                      "receitas":  6603180,
+                      "medicamentos":  8976947,
+                      "medicos":  490805,
+                      "share":  7.64
+                  },
+                  {
+                      "nome":  "LIBBS",
+                      "receitas":  5025019,
+                      "medicamentos":  5820722,
+                      "medicos":  411965,
+                      "share":  5.81
+                  },
+                  {
+                      "nome":  "TEUTO BRASILEIRO",
+                      "receitas":  4436808,
+                      "medicamentos":  8138867,
+                      "medicos":  422888,
+                      "share":  5.13
+                  },
+                  {
+                      "nome":  "APSEN",
+                      "receitas":  4039328,
+                      "medicamentos":  5258143,
+                      "medicos":  399111,
+                      "share":  4.67
+                  },
+                  {
+                      "nome":  "TORRENT",
+                      "receitas":  3987141,
+                      "medicamentos":  5588358,
+                      "medicos":  333464,
+                      "share":  4.61
+                  },
+                  {
+                      "nome":  "PRATI DONADUZZI",
+                      "receitas":  3152059,
+                      "medicamentos":  5119098,
+                      "medicos":  386487,
+                      "share":  3.65
+                  },
+                  {
+                      "nome":  "GERMED PHARMA",
+                      "receitas":  2631626,
+                      "medicamentos":  4257193,
+                      "medicos":  309126,
+                      "share":  3.04
+                  },
+                  {
+                      "nome":  "BIOLAB-SANUS FARMA",
+                      "receitas":  2566732,
+                      "medicamentos":  4050181,
+                      "medicos":  355209,
+                      "share":  2.97
+                  },
+                  {
+                      "nome":  "SUPERA RX",
+                      "receitas":  2321667,
+                      "medicamentos":  3030975,
+                      "medicos":  294549,
+                      "share":  2.69
+                  },
+                  {
+                      "nome":  "ABBOTT EPD",
+                      "receitas":  2138472,
+                      "medicamentos":  3650479,
+                      "medicos":  251932,
+                      "share":  2.47
+                  },
+                  {
+                      "nome":  "GEOLAB",
+                      "receitas":  2093700,
+                      "medicamentos":  3467212,
+                      "medicos":  274125,
+                      "share":  2.42
+                  },
+                  {
+                      "nome":  "SANDOZ",
+                      "receitas":  1936379,
+                      "medicamentos":  2930381,
+                      "medicos":  288324,
+                      "share":  2.24
+                  }
+              ],
+    "geo":  [
+                {
+                    "regiao":  "SAO PAULO",
+                    "receitas":  26496326,
+                    "medicamentos":  44936565,
+                    "medicos":  230990
+                },
+                {
+                    "regiao":  "MINAS GERAIS",
+                    "receitas":  16988964,
+                    "medicamentos":  31546560,
+                    "medicos":  95235
+                },
+                {
+                    "regiao":  "RIO GRANDE DO SUL",
+                    "receitas":  12771206,
+                    "medicamentos":  18552464,
+                    "medicos":  50837
+                },
+                {
+                    "regiao":  "RIO DE JANEIRO",
+                    "receitas":  8284833,
+                    "medicamentos":  12236067,
+                    "medicos":  73411
+                },
+                {
+                    "regiao":  "PARANA",
+                    "receitas":  8274025,
+                    "medicamentos":  12560666,
+                    "medicos":  50792
+                },
+                {
+                    "regiao":  "SANTA CATARINA",
+                    "receitas":  6076385,
+                    "medicamentos":  9859810,
+                    "medicos":  35117
+                },
+                {
+                    "regiao":  "BAHIA",
+                    "receitas":  3607180,
+                    "medicamentos":  5665349,
+                    "medicos":  41240
+                },
+                {
+                    "regiao":  "CEARA",
+                    "receitas":  3455888,
+                    "medicamentos":  5841553,
+                    "medicos":  25727
+                },
+                {
+                    "regiao":  "PERNAMBUCO",
+                    "receitas":  3426097,
+                    "medicamentos":  5839511,
+                    "medicos":  32246
+                },
+                {
+                    "regiao":  "GOIAS",
+                    "receitas":  2964755,
+                    "medicamentos":  5005522,
+                    "medicos":  30719
+                },
+                {
+                    "regiao":  "DISTRITO FEDERAL",
+                    "receitas":  2459793,
+                    "medicamentos":  4415491,
+                    "medicos":  27573
+                },
+                {
+                    "regiao":  "ESPIRITO SANTO",
+                    "receitas":  2428874,
+                    "medicamentos":  4153958,
+                    "medicos":  19688
+                },
+                {
+                    "regiao":  "MARANHAO",
+                    "receitas":  2285349,
+                    "medicamentos":  3549156,
+                    "medicos":  13546
+                },
+                {
+                    "regiao":  "PARA",
+                    "receitas":  2106673,
+                    "medicamentos":  3158938,
+                    "medicos":  16791
+                },
+                {
+                    "regiao":  "PARAIBA",
+                    "receitas":  1819795,
+                    "medicamentos":  2788922,
+                    "medicos":  15167
+                },
+                {
+                    "regiao":  "MATO GROSSO",
+                    "receitas":  1625526,
+                    "medicamentos":  2297900,
+                    "medicos":  12781
+                },
+                {
+                    "regiao":  "MATO GROSSO DO SUL",
+                    "receitas":  1605423,
+                    "medicamentos":  2520175,
+                    "medicos":  12134
+                },
+                {
+                    "regiao":  "RIO GRANDE DO NORTE",
+                    "receitas":  1369163,
+                    "medicamentos":  2304893,
+                    "medicos":  11265
+                },
+                {
+                    "regiao":  "AMAZONAS",
+                    "receitas":  1151643,
+                    "medicamentos":  1756147,
+                    "medicos":  9452
+                },
+                {
+                    "regiao":  "PIAUI",
+                    "receitas":  900489,
+                    "medicamentos":  1346341,
+                    "medicos":  9648
+                }
+            ],
+    "generated_at":  "2026-05-05T12:57:34Z"
+}
