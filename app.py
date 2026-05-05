@@ -22,13 +22,11 @@ _IQ_USER = os.environ.get("IQ_USER", "iaapi")
 _IQ_PASS = os.environ.get("IQ_PASSWORD", "i@sql2025HML")
 USE_DIRECT = False  # pymssql incompatível com SAP IQ — usar HTTP API
 
-# ── Modo B: HTTP API (sqlsrv50.sqltech.com.br:443 via FortiGate) ─────────
-_DB_HOST     = os.environ.get("DATABASE_HOST", "claude.sqltech.com.br")
-_DB_PORT     = int(os.environ.get("DATABASE_PORT", "3030"))
-_DB_API_KEY  = os.environ.get("SQLTECH_TOKEN", "")
-_DB_SCHEME   = os.environ.get("DATABASE_SCHEME", "http")
-_DB_API_BASE = f"{_DB_SCHEME}://{_DB_HOST}:{_DB_PORT}"
-USE_HTTP_API = bool(_DB_HOST)
+# ── Agente Java via Cloudflare Tunnel ────────────────────────────────────
+# URL muda a cada reinício do tunnel — atualizar AGENT_URL no Railway
+_AGENT_URL     = os.environ.get("AGENT_URL", "https://democrat-hoping-marked-oscar.trycloudflare.com")
+_AGENT_API_KEY = os.environ.get("AGENT_API_KEY", "")
+USE_HTTP_API   = True  # sempre usa o agente Java
 
 # Certificado de cliente mTLS (sqlsrv50.pfx, senha 1234)
 _PFX_PATH    = os.path.join(os.path.dirname(__file__), "sqlsrv50.pfx")
@@ -122,16 +120,15 @@ def _inline_params(sql, params):
     return sql
 
 def _api_call(sql):
-    """Envia SQL à API HTTP e retorna lista de dicts."""
+    """Envia SQL ao Java Agent via Cloudflare Tunnel."""
     hdrs = {"Content-Type": "application/json"}
-    if _DB_API_KEY:
-        hdrs["x-api-key"] = _DB_API_KEY
-    # Certificado GoDaddy válido — verify=False só para evitar erro de cadeia intermediária
+    if _AGENT_API_KEY:
+        hdrs["X-API-Key"] = _AGENT_API_KEY
     resp = requests.post(
-        f"{_DB_API_BASE}/execute",
+        f"{_AGENT_URL}/execute",
         json={"sql": sql},
         headers=hdrs,
-        verify=False,
+        verify=True,   # Cloudflare tem cert válido
         timeout=30
     )
     resp.raise_for_status()
@@ -702,17 +699,13 @@ def debug():
 
 @app.route("/api/test-db")
 def test_db():
-    """Testa a conexão com a API HTTP (claude.sqltech.com.br) e retorna diagnóstico."""
+    """Testa conexão com o Java Agent via Cloudflare Tunnel."""
     import time
     result = {
         "config": {
-            "modo":         "direto_pymssql" if USE_DIRECT else ("http_api" if USE_HTTP_API else "sqlite"),
-            "api_base":     _DB_API_BASE,
-            "api_key_set":  bool(_DB_API_KEY),
-            "cert_loaded":  _CLIENT_CERT is not None,
-            "ca_loaded":    _CA_CERT is not None,
-            "cert_file":    "sqlsrv50.pfx",
-            "table":        TABLE_PRESC,
+            "agent_url":     _AGENT_URL,
+            "api_key_set":   bool(_AGENT_API_KEY),
+            "table":         TABLE_PRESC,
         },
         "steps": {}
     }
