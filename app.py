@@ -298,7 +298,7 @@ def _load_static_files():
         try:
             with open(_STATIC_DASH, encoding="utf-8") as f:
                 dash = json.load(f)
-            cache_set("dash::::MANUFACTURER_DESC:STATE_DESC", dash)
+            cache_set("dash::():MANUFACTURER_DESC:STATE_DESC", dash)
             gen = dash.get("generated_at", "?")
             print(f"[static] dashboard.json carregado (gerado em {gen}).")
             loaded += 1
@@ -731,7 +731,7 @@ def _prewarm_cache():
         try:
             print("[prewarm] Verificando cache...")
             with app.app_context():
-                ck_d    = "dash::::MANUFACTURER_DESC:STATE_DESC"
+                ck_d    = "dash::():MANUFACTURER_DESC:STATE_DESC"
                 ck_rank = "ranking::():200"
                 dash_ok    = cache_get(ck_d)    is not None
                 ranking_ok = cache_get(ck_rank) is not None
@@ -901,7 +901,7 @@ def admin_generate_static():
                 "share": share, "geo": geo,
                 "generated_at": now_utc,
             }
-            cache_set("dash::::MANUFACTURER_DESC:STATE_DESC", dash_data)
+            cache_set("dash::():MANUFACTURER_DESC:STATE_DESC", dash_data)
             os.makedirs(os.path.dirname(_STATIC_DASH), exist_ok=True)
             with open(_STATIC_DASH, "w", encoding="utf-8") as f:
                 json.dump(dash_data, f, ensure_ascii=False, default=str)
@@ -1130,7 +1130,7 @@ ADMIN_KEY = os.environ.get("ADMIN_KEY", "iqvia-admin-2026")
 @login_required
 def api_status():
     """Informa se os dados já estão prontos no cache."""
-    dash_ok    = cache_get("dash::::MANUFACTURER_DESC:STATE_DESC") is not None
+    dash_ok    = cache_get("dash::():MANUFACTURER_DESC:STATE_DESC") is not None
     ranking_ok = cache_get("ranking::():200") is not None
     return jsonify({
         "dashboard_pronto": dash_ok,
