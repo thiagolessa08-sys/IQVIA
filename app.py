@@ -4,6 +4,12 @@ import sqlite3, os, requests, json, re, time
 from datetime import datetime
 import pandas as pd
 import urllib3
+try:
+    import psycopg2
+    import psycopg2.extras
+    _PSYCOPG2_OK = True
+except ImportError:
+    _PSYCOPG2_OK = False
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = Flask(__name__)
@@ -201,10 +207,82 @@ def _df_to_table(df, table_name):
     df.to_sql(table_name, con, if_exists="replace", index=False)
     con.close()
 
-# ── Cache em memória + snapshot em disco (dados mensais) ─────────────────
-_cache = {}
-CACHE_TTL   = 30 * 24 * 3600          # 30 dias — dados carregados mensalmente
-CACHE_FILE  = os.path.join(os.path.dirname(__file__), "data", "cache_snapshot.json")
+# ── Cache: L1 memória · L2 PostgreSQL (dados agregados mensais) ──────────
+# O chat continua executando SQL direto no SAP IQ via Java Agent.
+# Só os dados pré-agregados das abas Market e Prescritores são salvos aqui.
+
+_cache    = {}
+CACHE_TTL = 30 * 24 * 3600   # 30 dias
+
+_PG_URL = os.environ.get("DATABASE_URL", "")
+
+def _pg_conn():
+    """Abre conexão com o PostgreSQL do Railway."""
+    if not _PSYCOPG2_OK or not _PG_URL:
+        return None
+    try:
+        return psycopg2.connect(_PG_URL, connect_timeout=5)
+    except Exception as e:
+        print(f"[pg] Falha ao conectar: {e}")
+        return None
+
+def _pg_init():
+    """Cria tabela de cache no Postgres se não existir."""
+    conn = _pg_conn()
+    if not conn:
+        return
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS pharma_cache (
+                        key     TEXT PRIMARY KEY,
+                        data    JSONB NOT NULL,
+                        saved_at TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
+        print("[pg] Tabela pharma_cache OK.")
+    except Exception as e:
+        print(f"[pg] Erro ao criar tabela: {e}")
+    finally:
+        conn.close()
+
+def pg_save_all():
+    """Salva todo o cache de memória no PostgreSQL (chamado após prewarm)."""
+    conn = _pg_conn()
+    if not conn:
+        return
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                for key, entry in _cache.items():
+                    cur.execute("""
+                        INSERT INTO pharma_cache (key, data) VALUES (%s, %s)
+                        ON CONFLICT (key) DO UPDATE
+                            SET data = EXCLUDED.data, saved_at = NOW()
+                    """, (key, json.dumps(entry["data"], default=str)))
+        print(f"[pg] {len(_cache)} entradas salvas no PostgreSQL.")
+    except Exception as e:
+        print(f"[pg] Erro ao salvar: {e}")
+    finally:
+        conn.close()
+
+def pg_load_all():
+    """Carrega todos os dados do PostgreSQL para a memória no startup."""
+    conn = _pg_conn()
+    if not conn:
+        return
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT key, data FROM pharma_cache")
+            rows = cur.fetchall()
+        for row in rows:
+            _cache[row["key"]] = {"data": row["data"], "ts": time.time()}
+        print(f"[pg] {len(rows)} entradas carregadas do PostgreSQL → cache pronto.")
+    except Exception as e:
+        print(f"[pg] Erro ao carregar: {e}")
+    finally:
+        conn.close()
 
 def cache_get(key):
     entry = _cache.get(key)
@@ -217,32 +295,22 @@ def cache_set(key, data):
 
 def cache_clear():
     _cache.clear()
+    # Limpa também no Postgres
+    conn = _pg_conn()
+    if conn:
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM pharma_cache")
+            print("[pg] Cache limpo no PostgreSQL.")
+        except Exception as e:
+            print(f"[pg] Erro ao limpar: {e}")
+        finally:
+            conn.close()
 
-def save_cache_to_file():
-    """Persiste o cache em disco — sobrevive a restarts do servidor."""
-    try:
-        os.makedirs(os.path.dirname(CACHE_FILE), exist_ok=True)
-        with open(CACHE_FILE, "w", encoding="utf-8") as f:
-            json.dump(_cache, f, ensure_ascii=False, default=str)
-        print(f"[cache] Snapshot salvo: {len(_cache)} entradas → {CACHE_FILE}")
-    except Exception as e:
-        print(f"[cache] Erro ao salvar snapshot: {e}")
-
-def load_cache_from_file():
-    """Carrega snapshot do disco para a memória no startup — página abre em <1s."""
-    global _cache
-    if not os.path.exists(CACHE_FILE):
-        print("[cache] Nenhum snapshot em disco.")
-        return
-    try:
-        with open(CACHE_FILE, "r", encoding="utf-8") as f:
-            _cache = json.load(f)
-        print(f"[cache] Snapshot carregado: {len(_cache)} entradas de {CACHE_FILE}")
-    except Exception as e:
-        print(f"[cache] Erro ao carregar snapshot: {e}")
-
-# Carrega snapshot do disco imediatamente ao iniciar
-load_cache_from_file()
+# Inicializa e carrega ao subir o servidor
+_pg_init()
+pg_load_all()
 
 # ── Auth ──────────────────────────────────────────────────────────────────
 USERS = {
@@ -676,8 +744,8 @@ def _prewarm_cache():
                     """)
                     cache_set(ck_rank, ranking)
                     print(f"[cache] Ranking pre-aquecido: {len(ranking)} médicos.")
-                # Salva snapshot em disco para sobreviver ao próximo restart
-                save_cache_to_file()
+                # Salva tudo no PostgreSQL — sobrevive a restarts e re-deploys
+                pg_save_all()
         except Exception as e:
             print(f"[cache] Pre-aquecimento falhou: {e}")
     threading.Thread(target=_run, daemon=True).start()
@@ -868,12 +936,10 @@ ADMIN_KEY = os.environ.get("ADMIN_KEY", "iqvia-admin-2026")
 @app.route("/admin/refresh-cache")
 @login_required
 def admin_refresh_cache():
-    """Limpa o cache em memória + arquivo e dispara novo pre-aquecimento."""
-    cache_clear()
-    if os.path.exists(CACHE_FILE):
-        os.remove(CACHE_FILE)
+    """Limpa o cache (memória + PostgreSQL) e rebusca dados do SAP IQ."""
+    cache_clear()   # limpa memória + PostgreSQL
     _prewarm_cache()
-    return jsonify({"status": "ok", "msg": "Cache limpo. Pre-aquecimento iniciado em background (~5min)."})
+    return jsonify({"status": "ok", "msg": "Cache limpo. Rebuscando dados do SAP IQ em background (~5 min). Use /api/dashboard para acompanhar."})
 
 @app.route("/admin/load", methods=["GET"])
 @login_required
