@@ -274,10 +274,7 @@
             <svg viewBox="0 0 24 24" fill="none"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
           </button>
         </div>
-        <button class="btn-clear" onclick="clearFilters()">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-          Limpar filtros
-        </button>
+        <!-- Limpar filtros desativado — dados mensais fixos -->
         <div class="user">
           <div class="avatar" id="userAvatar">U</div>
           <div class="user-info">
@@ -288,34 +285,8 @@
       </div>
     </div>
 
-    <!-- Linha 2: Filtros (flex-wrap, sem scroll) -->
-    <div class="filter-bar">
-      <div class="multi-select" id="msWrap">
-        <button type="button" class="ms-trigger" id="msTrigger" onclick="toggleMs()">
-          <span id="msLabel">Todas as moléculas</span>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
-        <div class="ms-dropdown" id="msDropdown" style="display:none;">
-          <div class="ms-search"><input type="text" id="msSearch" placeholder="Buscar molécula..." oninput="filterMsOptions()"></div>
-          <div class="ms-options" id="msOptions"></div>
-          <div class="ms-footer"><button onclick="clearMs()">Limpar seleção</button><span id="msCount">0 selecionadas</span></div>
-        </div>
-      </div>
-      <select id="fLaboratorio"><option value="">Laboratório: Todos</option></select>
-      <select id="fEstado" onchange="onEstadoChange()"><option value="">Estado: Todos</option></select>
-      <select id="fCidade"><option value="">Cidade: Todas</option></select>
-      <div class="fsep"></div>
-      <span class="tbar-label">De</span>
-      <select id="fPeriodoIni"><option value="">Início</option></select>
-      <span class="tbar-label">até</span>
-      <select id="fPeriodoFim"><option value="">Fim</option></select>
-      <div class="fsep"></div>
-      <button class="btn-apply" onclick="applyFilters()">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Aplicar filtros
-      </button>
-      <div id="msTags" class="ms-tags" style="margin-left:4px;padding:0;"></div>
-    </div>
+    <!-- Filtros desativados — dados mensais fixos -->
+    <!-- Reativar quando necessário: descomentar bloco filter-bar -->
   </div>
 
   <div class="page-head">
@@ -478,52 +449,8 @@ document.addEventListener('click',function(e){
   if(w&&!w.contains(e.target)){document.getElementById('msDropdown').style.display='none';document.getElementById('msTrigger').classList.remove('open');}
 });
 
-function params(){
-  const p=new URLSearchParams(),v=id=>document.getElementById(id).value;
-  if(selectedMols.length) p.set('molecula',selectedMols.join(','));
-  if(v('fLaboratorio')) p.set('laboratorio',v('fLaboratorio'));
-  if(v('fEstado'))      p.set('estado',     v('fEstado'));
-  if(v('fCidade'))      p.set('cidade',     v('fCidade'));
-  if(v('fPeriodoIni'))  p.set('periodo_ini',v('fPeriodoIni'));
-  if(v('fPeriodoFim'))  p.set('periodo_fim',v('fPeriodoFim'));
-  return p;
-}
-
-function populateSelect(id,items,ph){
-  const s=document.getElementById(id),cur=s.value;
-  s.innerHTML=`<option value="">${ph}</option>`+items.map(v=>`<option value="${v}"${v===cur?' selected':''}>${v}</option>`).join('');
-}
-
-async function loadFilters(){
-  const d=await get('/api/filters/all');
-  buildMs(d.moleculas);
-  populateSelect('fLaboratorio',d.laboratorios, 'Todos os laboratórios');
-  populateSelect('fEstado',     d.estados,      'Todos os estados');
-  populateSelect('fPeriodoIni', d.periodos,     'De');
-  populateSelect('fPeriodoFim', d.periodos,     'Até');
-}
-
-async function onMoleculaChange(){
-  const qs=selectedMols.length?'?molecula='+selectedMols.map(encodeURIComponent).join(','):'';
-  populateSelect('fLaboratorio',await get('/api/filters/laboratorios'+qs),'Todos os laboratórios');
-}
-
-async function onEstadoChange(){
-  const estado=document.getElementById('fEstado').value;
-  populateSelect('fCidade',await get('/api/filters/cidades'+(estado?'?estado='+encodeURIComponent(estado):'')), 'Todas as cidades');
-}
-
-function clearFilters(){
-  clearMs();
-  ['fLaboratorio','fEstado','fCidade','fPeriodoIni','fPeriodoFim'].forEach(id=>document.getElementById(id).value='');
-  loadAll();
-}
-async function applyFilters(){
-  const loader=document.getElementById('pageLoader');
-  loader.classList.remove('hidden');
-  await loadAll();
-  loader.classList.add('hidden');
-}
+/* Filtros desativados — dados mensais fixos */
+function params(){ return new URLSearchParams(); }
 
 function switchTab(tab,el){
   currentTab=tab;
@@ -657,7 +584,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   const name=m?decodeURIComponent(m[1]):'Usuário';
   document.getElementById('userName').textContent=name;
   document.getElementById('userAvatar').textContent=name.charAt(0).toUpperCase();
-  await Promise.all([loadFilters(), loadAll()]);
+  await loadAll();
   document.getElementById('pageLoader').classList.add('hidden');
 });
 </script>

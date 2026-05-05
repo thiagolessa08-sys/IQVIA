@@ -201,9 +201,10 @@ def _df_to_table(df, table_name):
     df.to_sql(table_name, con, if_exists="replace", index=False)
     con.close()
 
-# ── Cache simples em memória (TTL) ───────────────────────────────────────
+# ── Cache em memória + snapshot em disco (dados mensais) ─────────────────
 _cache = {}
-CACHE_TTL = 3600  # 1 hora — dados farmacêuticos não mudam por minuto
+CACHE_TTL   = 30 * 24 * 3600          # 30 dias — dados carregados mensalmente
+CACHE_FILE  = os.path.join(os.path.dirname(__file__), "data", "cache_snapshot.json")
 
 def cache_get(key):
     entry = _cache.get(key)
@@ -216,6 +217,32 @@ def cache_set(key, data):
 
 def cache_clear():
     _cache.clear()
+
+def save_cache_to_file():
+    """Persiste o cache em disco — sobrevive a restarts do servidor."""
+    try:
+        os.makedirs(os.path.dirname(CACHE_FILE), exist_ok=True)
+        with open(CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(_cache, f, ensure_ascii=False, default=str)
+        print(f"[cache] Snapshot salvo: {len(_cache)} entradas → {CACHE_FILE}")
+    except Exception as e:
+        print(f"[cache] Erro ao salvar snapshot: {e}")
+
+def load_cache_from_file():
+    """Carrega snapshot do disco para a memória no startup — página abre em <1s."""
+    global _cache
+    if not os.path.exists(CACHE_FILE):
+        print("[cache] Nenhum snapshot em disco.")
+        return
+    try:
+        with open(CACHE_FILE, "r", encoding="utf-8") as f:
+            _cache = json.load(f)
+        print(f"[cache] Snapshot carregado: {len(_cache)} entradas de {CACHE_FILE}")
+    except Exception as e:
+        print(f"[cache] Erro ao carregar snapshot: {e}")
+
+# Carrega snapshot do disco imediatamente ao iniciar
+load_cache_from_file()
 
 # ── Auth ──────────────────────────────────────────────────────────────────
 USERS = {
@@ -630,6 +657,8 @@ def _prewarm_cache():
                     geo = query("SELECT STATE_DESC AS regiao, SUM(RX_COUNT_TOTAL) AS receitas, SUM(DISPENSED_QTY_TOTAL) AS medicamentos, COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS medicos FROM prescricoes GROUP BY STATE_DESC ORDER BY SUM(RX_COUNT_TOTAL) DESC LIMIT 20")
                     cache_set(ck_d, {"kpis": kpis_r[0] if kpis_r else {}, "evolucao": evolucao, "share": share, "geo": geo})
                     print("[cache] Dashboard pre-aquecido com sucesso.")
+                # Salva snapshot em disco para sobreviver ao próximo restart
+                save_cache_to_file()
         except Exception as e:
             print(f"[cache] Pre-aquecimento falhou: {e}")
     threading.Thread(target=_run, daemon=True).start()
@@ -816,6 +845,16 @@ def chat():
 
 # ── Admin: carga de dados ─────────────────────────────────────────────────
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "iqvia-admin-2026")
+
+@app.route("/admin/refresh-cache")
+@login_required
+def admin_refresh_cache():
+    """Limpa o cache em memória + arquivo e dispara novo pre-aquecimento."""
+    cache_clear()
+    if os.path.exists(CACHE_FILE):
+        os.remove(CACHE_FILE)
+    _prewarm_cache()
+    return jsonify({"status": "ok", "msg": "Cache limpo. Pre-aquecimento iniciado em background (~5min)."})
 
 @app.route("/admin/load", methods=["GET"])
 @login_required
