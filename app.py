@@ -657,6 +657,25 @@ def _prewarm_cache():
                     geo = query("SELECT STATE_DESC AS regiao, SUM(RX_COUNT_TOTAL) AS receitas, SUM(DISPENSED_QTY_TOTAL) AS medicamentos, COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS medicos FROM prescricoes GROUP BY STATE_DESC ORDER BY SUM(RX_COUNT_TOTAL) DESC LIMIT 20")
                     cache_set(ck_d, {"kpis": kpis_r[0] if kpis_r else {}, "evolucao": evolucao, "share": share, "geo": geo})
                     print("[cache] Dashboard pre-aquecido com sucesso.")
+
+                # Ranking de prescritores (também pesado — pré-aquecer)
+                ck_rank = "ranking::():200"
+                if not cache_get(ck_rank):
+                    ranking = query("""
+                        SELECT DOCTOR_DISPLAY_CD                                AS crm,
+                               TRIM(FIRST_NM) || ' ' || TRIM(SURNM_NM)        AS medico,
+                               CITY_DESC AS cidade, STATE_DESC AS estado, IMS_BRICK_DESC AS brick,
+                               SUM(RX_COUNT_TOTAL)                             AS total_receitas,
+                               SUM(DISPENSED_QTY_TOTAL)                        AS total_medicamentos,
+                               COUNT(DISTINCT MANUFACTURER_DESC)                AS qtde_labs,
+                               COUNT(DISTINCT BRAND_NAME)                      AS qtde_marcas
+                        FROM prescricoes
+                        GROUP BY DOCTOR_DISPLAY_CD, FIRST_NM, SURNM_NM, CITY_DESC, STATE_DESC, IMS_BRICK_DESC
+                        ORDER BY SUM(RX_COUNT_TOTAL) DESC
+                        LIMIT 200
+                    """)
+                    cache_set(ck_rank, ranking)
+                    print(f"[cache] Ranking pre-aquecido: {len(ranking)} médicos.")
                 # Salva snapshot em disco para sobreviver ao próximo restart
                 save_cache_to_file()
         except Exception as e:

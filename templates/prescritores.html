@@ -405,7 +405,21 @@ function fmt(n){
 }
 function fmtM(n){return`<span style="font-family:'JetBrains Mono',monospace">${fmt(n)}</span>`;}
 
-async function get(url){return(await fetch(url)).json();}
+async function get(url, ms=120000){
+  const ctrl=new AbortController();
+  const tid=setTimeout(()=>ctrl.abort(),ms);
+  try{
+    const r=await fetch(url,{signal:ctrl.signal});
+    if(!r.ok) throw new Error(`HTTP ${r.status}`);
+    return await r.json();
+  }catch(e){
+    console.warn('[get] erro:',url,e.message);
+    return null;
+  }finally{
+    clearTimeout(tid);
+  }
+}
+function hideLoader(){document.getElementById('pageLoader').classList.add('hidden');}
 function isDark(){return document.documentElement.getAttribute('data-theme')==='dark';}
 function tickClr(){return isDark()?'rgba(255,255,255,.4)':'#9ca3af';}
 function gridClr(){return isDark()?'rgba(255,255,255,.06)':'rgba(0,0,0,.06)';}
@@ -584,8 +598,11 @@ document.addEventListener('DOMContentLoaded',async()=>{
   const name=m?decodeURIComponent(m[1]):'Usuário';
   document.getElementById('userName').textContent=name;
   document.getElementById('userAvatar').textContent=name.charAt(0).toUpperCase();
-  await loadAll();
-  document.getElementById('pageLoader').classList.add('hidden');
+  /* Garante que o overlay some em no máximo 8s independente das queries */
+  const loaderMax=setTimeout(hideLoader,8000);
+  try{ await loadAll(); }catch(e){ console.warn('loadAll err',e); }
+  clearTimeout(loaderMax);
+  hideLoader();
 });
 </script>
 </body>
