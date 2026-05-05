@@ -710,20 +710,36 @@ def test_db():
         "steps": {}
     }
 
+    # 0. Descobrir endpoint correto do Java Agent
+    _paths = ["/execute", "/query", "/sql", "/api/execute", "/api/query", "/run"]
+    _endpoint = None
+    hdrs = {"Content-Type": "application/json"}
+    if _AGENT_API_KEY:
+        hdrs["X-API-Key"] = _AGENT_API_KEY
+    for p in _paths:
+        try:
+            r = requests.post(f"{_AGENT_URL}{p}", json={"sql": "SELECT 1"},
+                              headers=hdrs, verify=True, timeout=10)
+            if r.status_code != 404:
+                _endpoint = p
+                result["steps"]["0_endpoint"] = {"ok": True, "path": p, "status": r.status_code}
+                break
+        except Exception:
+            continue
+    if not _endpoint:
+        result["steps"]["0_endpoint"] = {"ok": False, "erro": "Nenhum endpoint respondeu — verificar Java Agent", "testados": _paths}
+        result["status"] = "FALHOU"
+        return jsonify(result)
+
     # 1. Ping via SELECT 1
     t0 = time.time()
     try:
-        rows = query("SELECT 1 AS ping FROM iqhdummy")  # SAP IQ usa iqhdummy como dual
+        rows = query("SELECT 1 AS ping")
         result["steps"]["1_ping"] = {"ok": True, "resposta": rows, "ms": round((time.time()-t0)*1000)}
     except Exception as e:
-        # fallback: tenta sem FROM
-        try:
-            rows = query("SELECT 1 AS ping")
-            result["steps"]["1_ping"] = {"ok": True, "resposta": rows, "ms": round((time.time()-t0)*1000)}
-        except Exception as e2:
-            result["steps"]["1_ping"] = {"ok": False, "erro": str(e2), "ms": round((time.time()-t0)*1000)}
-            result["status"] = "FALHOU"
-            return jsonify(result)
+        result["steps"]["1_ping"] = {"ok": False, "erro": str(e), "ms": round((time.time()-t0)*1000)}
+        result["status"] = "FALHOU"
+        return jsonify(result)
 
     # 2. Tabela existe?
     t0 = time.time()
