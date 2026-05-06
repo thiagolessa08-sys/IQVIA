@@ -915,6 +915,27 @@ def prescritores_oportunidades():
     """, (molecula,) + tuple(extra_params) + (molecula, laboratorio))
     return jsonify(rows)
 
+# ── Geo: top moléculas da base (para sugestões dinâmicas) ─────────────────
+@app.route("/api/geo/moleculas-top")
+@login_required
+def geo_moleculas_top():
+    limit = min(int(request.args.get("limit", "12")), 30)
+    try:
+        rows = query(f"""
+            SELECT TOP {limit}
+                   COMBINED_MOLECULE_DESC AS molecula,
+                   SUM(RX_COUNT_TOTAL)               AS total_receitas,
+                   COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS total_medicos
+            FROM prescricoes
+            WHERE COMBINED_MOLECULE_DESC IS NOT NULL
+              AND COMBINED_MOLECULE_DESC <> ''
+            GROUP BY COMBINED_MOLECULE_DESC
+            ORDER BY SUM(RX_COUNT_TOTAL) DESC
+        """)
+        return jsonify(rows)
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 503
+
 # ── Geo: cidades com mais prescritores por medicamento/molécula ───────────
 @app.route("/api/geo/prescritores-bairro")
 @login_required

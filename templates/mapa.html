@@ -251,16 +251,9 @@
       <button class="limit-btn" onclick="setLimit(10,this)">10</button>
       <button class="limit-btn" onclick="setLimit(20,this)">20</button>
     </div>
-    <div class="quick-drugs">
-      <span style="font-size:11.5px;color:var(--ink-3);font-weight:600;align-self:center">Acesso rápido:</span>
-      <button class="drug-chip" onclick="quickSearch('Metformina')">Metformina</button>
-      <button class="drug-chip" onclick="quickSearch('Losartana')">Losartana</button>
-      <button class="drug-chip" onclick="quickSearch('Atorvastatina')">Atorvastatina</button>
-      <button class="drug-chip" onclick="quickSearch('Escitalopram')">Escitalopram</button>
-      <button class="drug-chip" onclick="quickSearch('Omeprazol')">Omeprazol</button>
-      <button class="drug-chip" onclick="quickSearch('Amlodipina')">Amlodipina</button>
-      <button class="drug-chip" onclick="quickSearch('Sertralina')">Sertralina</button>
-      <button class="drug-chip" onclick="quickSearch('Levotiroxina')">Levotiroxina</button>
+    <div class="quick-drugs" id="quickDrugs">
+      <span style="font-size:11.5px;color:var(--ink-3);font-weight:600;align-self:center">Mais prescritas:</span>
+      <span style="font-size:11.5px;color:var(--ink-3);font-style:italic" id="chipsLoading">carregando…</span>
     </div>
   </div>
 
@@ -338,7 +331,7 @@ function setLimit(n,el){
 
 function quickSearch(drug){
   document.getElementById('drugInput').value=drug;
-  doSearch();
+  // apenas preenche o campo — usuário clica em "Buscar no Mapa"
 }
 
 function setStatus(msg,visible=true){
@@ -532,10 +525,38 @@ document.addEventListener('DOMContentLoaded',()=>{
   const name=m?decodeURIComponent(m[1]):'Usuário';
   document.getElementById('userName').textContent=name;
   document.getElementById('userAvatar').textContent=name.charAt(0).toUpperCase();
-  // suporte a ?q= vindo do chat
+  // ?q= vindo do chat — apenas preenche o campo, não executa busca
   const q=new URLSearchParams(window.location.search).get('q');
-  if(q){document.getElementById('drugInput').value=q;doSearch();}
+  if(q) document.getElementById('drugInput').value=q;
+
+  // Carrega chips com moléculas reais da base
+  loadMoleculasChips();
 });
+
+async function loadMoleculasChips(){
+  const container=document.getElementById('quickDrugs');
+  try{
+    const r=await fetch('/api/geo/moleculas-top?limit=12');
+    const d=await r.json();
+    if(!r.ok||d.erro||!d.length){
+      document.getElementById('chipsLoading').textContent='';
+      return;
+    }
+    // Remove o "carregando…" e insere os chips reais
+    container.innerHTML='<span style="font-size:11.5px;color:var(--ink-3);font-weight:600;align-self:center">Mais prescritas:</span>';
+    d.forEach(row=>{
+      if(!row.molecula)return;
+      const btn=document.createElement('button');
+      btn.className='drug-chip';
+      btn.textContent=row.molecula;
+      btn.title=`${Number(row.total_receitas||0).toLocaleString('pt-BR')} receitas · ${Number(row.total_medicos||0).toLocaleString('pt-BR')} médicos`;
+      btn.onclick=()=>quickSearch(row.molecula);
+      container.appendChild(btn);
+    });
+  }catch(e){
+    document.getElementById('chipsLoading').textContent='';
+  }
+}
 </script>
 </body>
 </html>
