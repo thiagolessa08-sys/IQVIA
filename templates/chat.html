@@ -31,21 +31,21 @@
   .app{display:grid;grid-template-columns:260px 1fr;height:100vh;overflow:hidden;}
 
   /* SIDEBAR */
-  .sidebar{background:var(--surface);border-right:1px solid var(--line);padding:26px 20px 20px;display:flex;flex-direction:column;gap:24px;overflow-y:auto;}
-  .brand{padding:0 8px 4px;}
-  .brand-name{font-family:'Calibri','Gill Sans MT','Trebuchet MS',sans-serif;font-size:26px;font-style:italic;color:var(--blue);letter-spacing:-0.01em;line-height:1.15;text-align:center;}
-  .nav-label{font-size:11px;letter-spacing:.14em;color:var(--ink-3);font-weight:600;padding:0 12px;text-transform:uppercase;margin-bottom:6px;}
+  .sidebar{background:#1B2559;border-right:none;padding:26px 20px 20px;display:flex;flex-direction:column;gap:24px;overflow-y:auto;}
+  .brand{display:flex;flex-direction:column;align-items:center;gap:10px;padding:4px 0 10px;border-bottom:1px solid rgba(255,255,255,.10);margin-bottom:4px;}
+  .nav-label{font-size:11px;letter-spacing:.14em;color:rgba(255,255,255,.4);font-weight:600;padding:0 12px;text-transform:uppercase;margin-bottom:6px;}
   .nav{display:flex;flex-direction:column;gap:2px;}
-  .nav a{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;color:var(--ink-2);text-decoration:none;font-size:14px;font-weight:500;transition:all .15s;}
-  .nav a:hover{background:var(--blue-soft);color:var(--ink);}
-  .nav a.active{background:var(--blue);color:#fff;}
+  .nav a{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;color:rgba(255,255,255,.65);text-decoration:none;font-size:14px;font-weight:500;transition:all .15s;}
+  .nav a:hover{background:rgba(255,255,255,.10);color:#fff;}
+  .nav a.active{background:#3B5BDB;color:#fff;box-shadow:0 4px 14px rgba(59,91,219,.35);}
   .nav a svg{width:18px;height:18px;flex:0 0 18px;}
-  .promo{margin-top:auto;background:var(--blue-ink);color:#fff;border-radius:18px;padding:18px;position:relative;overflow:hidden;}
-  .promo::before{content:"";position:absolute;inset:0;background:radial-gradient(80% 60% at 100% 100%,oklch(0.42 0.12 240/.9),transparent 70%);opacity:.9;}
+  .promo{margin-top:auto;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:18px;padding:18px;position:relative;overflow:hidden;}
+  .promo::before{content:"";position:absolute;inset:0;background:radial-gradient(80% 60% at 100% 100%,rgba(59,91,219,.6),transparent 70%);opacity:1;}
   .promo>*{position:relative;}
   .promo h4{margin:0 0 4px;font-size:15px;font-weight:700;}
-  .promo p{margin:0 0 14px;font-size:12.5px;color:oklch(0.88 0.015 220);line-height:1.45;}
-  .promo button{border:0;background:#fff;color:var(--blue-ink);padding:8px 16px;border-radius:999px;font-weight:700;font-size:12px;font-family:inherit;cursor:pointer;width:100%;}
+  .promo p{margin:0 0 14px;font-size:12.5px;color:rgba(255,255,255,.65);line-height:1.45;}
+  .promo button{border:0;background:#fff;color:#1B2559;padding:8px 16px;border-radius:999px;font-weight:700;font-size:12px;font-family:inherit;cursor:pointer;width:100%;transition:opacity .15s;}
+  .promo button:hover{opacity:.9;}
 
   /* MAIN — flex column, full height */
   .main{display:flex;flex-direction:column;min-width:0;overflow:hidden;}
@@ -165,7 +165,14 @@
 <!-- SIDEBAR -->
 <aside class="sidebar">
   <div class="brand">
-    <div class="brand-name">Pharma<br>Analytics</div>
+    <svg width="52" height="44" viewBox="0 0 52 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M1 36 L15 8 L24 8 L15 26 L22 26 L36 0 L45 0 L26 36 Z" fill="white" opacity="0.40"/>
+      <path d="M7 44 L21 16 L30 16 L21 34 L28 34 L42 8 L51 8 L32 44 Z" fill="white" opacity="0.90"/>
+    </svg>
+    <div style="text-align:center;">
+      <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;font-weight:800;color:#fff;letter-spacing:.06em;line-height:1.2;text-transform:uppercase;">Pharma Pharma</div>
+      <div style="font-size:9.5px;font-weight:500;color:rgba(255,255,255,.45);letter-spacing:.20em;margin-top:4px;text-transform:uppercase;">Analytics</div>
+    </div>
   </div>
   <div>
     <div class="nav-label">Análises</div>
@@ -589,14 +596,17 @@ function clearChat(){
   document.getElementById('theme-dark').addEventListener('click',()=>apply('dark'));
 })();
 
-// Load context chips from KPI endpoint
+// Load context chips do arquivo estático (sem query ao banco)
 async function loadContext(){
   try{
-    const d=await fetch('/api/market/kpis').then(r=>r.json());
-    document.getElementById('ctxReceitas').textContent=fmt(d.total_receitas);
-    document.getElementById('ctxMedicos').textContent=fmt(d.qtde_medicos);
-    document.getElementById('ctxLabs').textContent=fmt(d.qtde_laboratorios);
-    document.getElementById('ctxMols').textContent=fmt(d.qtde_moleculas);
+    const r=await fetch('/api/dashboard');
+    if(!r.ok)return;
+    const d=await r.json();
+    const k=d.kpis||d;
+    document.getElementById('ctxReceitas').textContent=fmt(k.total_receitas);
+    document.getElementById('ctxMedicos').textContent=fmt(k.qtde_medicos);
+    document.getElementById('ctxLabs').textContent=fmt(k.qtde_laboratorios);
+    document.getElementById('ctxMols').textContent=fmt(k.qtde_moleculas);
   }catch(e){}
 }
 
