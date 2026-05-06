@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   :root,[data-theme="light"]{
     --bg:oklch(0.97 0.006 220);--surface:#fff;--surface-2:oklch(0.95 0.01 220);
@@ -157,6 +159,38 @@
   [data-theme="dark"] .nav a.active{color:#fff;}
   ::-webkit-scrollbar{width:8px;}
   ::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:999px;}
+
+  /* ── MAP PANEL ── */
+  .map-panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;max-width:720px;width:100%;margin-top:10px;animation:msgIn .3s ease-out;}
+  .map-panel-header{display:flex;align-items:center;justify-content:space-between;padding:13px 18px 11px;border-bottom:1px solid var(--line);gap:10px;}
+  .map-panel-title{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--ink);flex:1;min-width:0;flex-wrap:wrap;}
+  .map-panel-title svg{flex-shrink:0;color:var(--blue);}
+  .map-panel-count{font-size:11px;font-weight:700;color:var(--ink-3);background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:2px 10px;white-space:nowrap;flex-shrink:0;}
+  .map-container{height:300px;width:100%;z-index:0;}
+  .map-cities-list{padding:8px 12px;display:flex;flex-direction:column;gap:3px;border-top:1px solid var(--line);}
+  .map-city-item{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:10px;cursor:pointer;transition:background .12s;}
+  .map-city-item:hover{background:var(--surface-2);}
+  .map-city-rank{width:22px;height:22px;border-radius:999px;background:var(--blue);color:#fff;font-size:10.5px;font-weight:800;display:grid;place-items:center;flex-shrink:0;}
+  .map-city-item:nth-child(n+2) .map-city-rank{background:var(--bar-track);color:var(--ink-3);}
+  .map-city-info{flex:1;min-width:0;display:flex;align-items:center;gap:6px;overflow:hidden;}
+  .map-city-info b{font-size:13px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .map-city-state{font-size:11px;color:var(--ink-3);background:var(--surface-2);border:1px solid var(--line);border-radius:4px;padding:1px 6px;flex-shrink:0;}
+  .map-city-stats{display:flex;gap:5px;flex-shrink:0;}
+  .map-city-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;}
+  .map-badge-med{background:oklch(0.92 0.04 240);color:oklch(0.32 0.12 240);}
+  .map-badge-rec{background:var(--surface-2);color:var(--ink-3);border:1px solid var(--line);}
+  [data-theme="dark"] .map-badge-med{background:oklch(0.28 0.08 240);color:oklch(0.72 0.12 240);}
+  .map-route-bar{display:flex;align-items:center;gap:8px;padding:11px 14px;border-top:1px solid var(--line);flex-wrap:wrap;}
+  .map-route-input{flex:1;min-width:180px;border:1.5px solid var(--line);background:var(--bg);border-radius:10px;padding:8px 12px;font-family:inherit;font-size:13px;color:var(--ink);outline:none;transition:border-color .15s;}
+  .map-route-input:focus{border-color:var(--blue);box-shadow:0 0 0 3px oklch(0.48 0.13 240/.12);}
+  .map-route-input::placeholder{color:var(--ink-3);}
+  .map-route-btn{display:flex;align-items:center;gap:6px;background:var(--blue);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:filter .15s;white-space:nowrap;flex-shrink:0;}
+  .map-route-btn:hover{filter:brightness(1.12);}
+  .map-route-info{width:100%;font-size:12px;padding:2px 2px 0;line-height:1.4;}
+  .map-loading{display:flex;align-items:center;gap:10px;padding:20px 18px;font-size:13px;color:var(--ink-3);}
+  /* Fix Leaflet z-index inside chat */
+  .leaflet-pane{z-index:1 !important;}
+  .leaflet-top,.leaflet-bottom{z-index:2 !important;}
 </style>
 </head>
 <body>
@@ -309,6 +343,10 @@
             <button class="chat-sug-btn" onclick="sendMsg('Qual o market share de cada laboratório por molécula?')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
               Market share por molécula
+            </button>
+            <button class="chat-sug-btn" onclick="sendMsg('Quais cidades têm mais médicos que prescrevem Metformina? Mostre no mapa')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="2"/></svg>
+              Mapa de prescrições por cidade
             </button>
           </div>
         </div>
@@ -565,8 +603,9 @@ async function sendMsg(textOverride){
         const total=data.queries_executed.reduce((s,q)=>s+q.linhas,0);
         finalReply=reply+`\n\n<div style="display:inline-flex;align-items:center;gap:6px;font-size:10.5px;color:var(--ink-3);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:4px 10px;margin-top:8px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="5" rx="9" ry="3" stroke="currentColor" stroke-width="1.8"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" stroke="currentColor" stroke-width="1.8"/></svg>${data.queries_executed.length} consulta(s) SQL · ${total.toLocaleString('pt-BR')} linhas analisadas</div>`;
       }
-      appendMsg('ai',finalReply);
+      const _ael=appendMsg('ai',finalReply);
       chatHistory.push({role:'assistant',content:reply});
+      if(detectGeoIntent(q)){const _tm=extractMedicamento(q);if(_tm)showGeoMap(_tm,_ael);}
     }
   }catch(e){
     hideTyping();appendMsg('ai','⚠ Falha de conexão. Verifique a rede e tente novamente.');chatHistory.pop();
@@ -607,6 +646,147 @@ async function loadContext(){
     document.getElementById('ctxLabs').textContent=fmt(k.qtde_laboratorios);
     document.getElementById('ctxMols').textContent=fmt(k.qtde_moleculas);
   }catch(e){}
+}
+
+// ── Geo Map Feature ──────────────────────────────────────────────────────
+const GEO_RE=/bairro|rota\b|mapa\b|região|regiao|cidade.*prescri|prescri.*cidad|onde.*prescrev|médico.*cidad|medico.*cidad|território|territorio|localiz|vizinhan|no mapa/i;
+
+function detectGeoIntent(text){return GEO_RE.test(text);}
+
+function extractMedicamento(text){
+  const stops=new Set('qual quais bairro cidade cidades região regiao estado onde mais menos tem têm que os as um uma de do da dos das em no na nos nas por para com sem sobre medico medicos médico médicos prescrevem prescrevendo prescrição prescricao prescricoes prescrições rota mapa território territorio saindo partindo endereço endereco maior top lista quero quais mostre show mapa me dê da no mapa'.split(' '));
+  const words=text.replace(/[?!.,]/g,'').split(/\s+/);
+  const m=words.filter(w=>w.length>=4&&!stops.has(w.toLowerCase()));
+  return m.slice(0,4).join(' ').trim()||text.trim();
+}
+
+const _geoMaps={};
+
+async function showGeoMap(termo,afterEl){
+  const pid='geo-'+Date.now();
+  const panel=document.createElement('div');
+  panel.className='map-panel';panel.id=pid;
+  panel.innerHTML=`<div class="map-loading"><div class="typing"><span></span><span></span><span></span></div>&nbsp; Buscando cidades para <strong>${termo}</strong>…</div>`;
+  afterEl.insertAdjacentElement('afterend',panel);
+  scrollBottom();
+  try{
+    const r=await fetch('/api/geo/prescritores-bairro?q='+encodeURIComponent(termo)+'&limit=10');
+    const d=await r.json();
+    if(!r.ok||d.erro||!d.resultados||!d.resultados.length){
+      panel.innerHTML=`<div class="map-loading" style="color:var(--ink-2)">Nenhuma cidade encontrada para <strong>"${termo}"</strong>. Tente o nome de um medicamento ou molécula.</div>`;
+      return;
+    }
+    renderGeoPanel(pid,d.termo,d.resultados);
+  }catch(e){
+    panel.innerHTML='<div class="map-loading">Erro ao buscar dados geográficos.</div>';
+  }
+}
+
+function renderGeoPanel(pid,termo,resultados){
+  const panel=document.getElementById(pid);if(!panel)return;
+  const mapId=pid+'-map';
+  const maxM=Math.max(...resultados.map(r=>+(r.total_medicos||0)),1);
+  const cityRows=resultados.slice(0,5).map((r,i)=>`
+    <div class="map-city-item" onclick="focusCity('${pid}',${i})">
+      <div class="map-city-rank">${i+1}</div>
+      <div class="map-city-info">
+        <b>${r.cidade||'—'}</b>
+        <span class="map-city-state">${r.estado||''}</span>
+      </div>
+      <div class="map-city-stats">
+        <span class="map-city-badge map-badge-med">${(+(r.total_medicos||0)).toLocaleString('pt-BR')} méd.</span>
+        <span class="map-city-badge map-badge-rec">${fmt(+(r.total_receitas||0))} rec.</span>
+      </div>
+    </div>`).join('');
+  panel.innerHTML=`
+    <div class="map-panel-header">
+      <div class="map-panel-title">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="1.8"/></svg>
+        Cidades · prescrições de <strong style="margin-left:3px">${termo}</strong>
+      </div>
+      <span class="map-panel-count">${resultados.length} cidades</span>
+    </div>
+    <div class="map-container" id="${mapId}"></div>
+    <div class="map-cities-list">${cityRows}</div>
+    <div class="map-route-bar">
+      <input class="map-route-input" id="${pid}-from" placeholder="Partir de: Av. Paulista, 1000 – São Paulo…" onkeydown="if(event.key==='Enter')buildRoute('${pid}')">
+      <button class="map-route-btn" onclick="buildRoute('${pid}')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M3 11l19-9-9 19-2-8-8-2z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Traçar Rota
+      </button>
+      <div class="map-route-info" id="${pid}-ri"></div>
+    </div>`;
+  if(!window.L){panel.querySelector('.map-container').innerHTML='<div style="padding:20px;color:var(--ink-3);font-size:13px">Leaflet não disponível.</div>';return;}
+  const map=L.map(mapId,{zoomControl:true,scrollWheelZoom:false}).setView([-15,-50],4);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© <a href="https://openstreetmap.org">OSM</a>',maxZoom:18}).addTo(map);
+  _geoMaps[pid]={map,resultados,markers:[],routeLayer:null,originMarker:null,destIdx:0};
+  geocodeCities(pid,resultados,maxM);
+  scrollBottom();
+}
+
+async function geocodeCities(pid,resultados,maxM){
+  const st=_geoMaps[pid];if(!st)return;
+  const bounds=[];
+  for(let i=0;i<resultados.length;i++){
+    if(i>0)await new Promise(r=>setTimeout(r,380));
+    const r=resultados[i];
+    try{
+      const res=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent((r.cidade||'')+',' +(r.estado||'')+',Brasil'),{headers:{'Accept-Language':'pt-BR,pt;q=0.9','User-Agent':'PharmaAnalytics/1.0'}});
+      const d=await res.json();
+      if(!d||!d.length)continue;
+      const lat=parseFloat(d[0].lat),lng=parseFloat(d[0].lon);
+      if(isNaN(lat)||isNaN(lng))continue;
+      bounds.push([lat,lng]);
+      const sz=Math.round(10+((+(r.total_medicos||0))/maxM)*20);
+      const isTop=i===0;
+      const mk=L.circleMarker([lat,lng],{radius:sz,fillColor:isTop?'#3B5BDB':'#003151',color:'#fff',weight:2,opacity:1,fillOpacity:isTop?0.95:0.72}).addTo(st.map);
+      mk.bindPopup(`<div style="font-family:'Plus Jakarta Sans',sans-serif;min-width:160px;line-height:1.5"><b style="font-size:13px">${r.cidade||'?'} – ${r.estado||''}</b><br><span style="font-size:12px;color:#555">👨‍⚕️ ${(+(r.total_medicos||0)).toLocaleString('pt-BR')} médicos</span><br><span style="font-size:12px;color:#555">📋 ${fmt(+(r.total_receitas||0))} receitas</span></div>`);
+      if(isTop)setTimeout(()=>mk.openPopup(),600);
+      st.markers.push({mk,lat,lng,cidade:r.cidade,estado:r.estado});
+    }catch(e){console.warn('[geo] geocode',r.cidade,e);}
+  }
+  if(bounds.length>1)st.map.fitBounds(bounds,{padding:[40,40]});
+  else if(bounds.length===1)st.map.setView(bounds[0],8);
+}
+
+function focusCity(pid,idx){
+  const st=_geoMaps[pid];if(!st||!st.markers[idx])return;
+  st.destIdx=idx;
+  const{mk,lat,lng}=st.markers[idx];
+  st.map.setView([lat,lng],9,{animate:true});
+  mk.openPopup();
+}
+
+async function buildRoute(pid){
+  const st=_geoMaps[pid];
+  const inp=document.getElementById(pid+'-from');
+  const ri=document.getElementById(pid+'-ri');
+  const fromVal=(inp&&inp.value||'').trim();
+  if(!fromVal){ri.innerHTML='<span style="color:var(--ink-3)">Digite o endereço de partida.</span>';return;}
+  if(!st||!st.markers.length){ri.innerHTML='<span style="color:var(--ink-3)">Aguarde o mapa carregar.</span>';return;}
+  ri.innerHTML='<span style="color:var(--ink-3)">Calculando rota…</span>';
+  try{
+    await new Promise(r=>setTimeout(r,200));
+    const og=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(fromVal+',Brasil'),{headers:{'Accept-Language':'pt-BR','User-Agent':'PharmaAnalytics/1.0'}});
+    const od=await og.json();
+    if(!od||!od.length){ri.innerHTML='<span style="color:oklch(0.55 0.17 25)">Endereço de origem não encontrado. Tente adicionar a cidade.</span>';return;}
+    const oLat=parseFloat(od[0].lat),oLng=parseFloat(od[0].lon);
+    const dest=st.markers[st.destIdx||0];
+    const rr=await fetch(`https://router.project-osrm.org/route/v1/driving/${oLng},${oLat};${dest.lng},${dest.lat}?overview=full&geometries=geojson`);
+    const rd=await rr.json();
+    if(rd.code!=='Ok'||!rd.routes||!rd.routes.length){ri.innerHTML='<span style="color:oklch(0.55 0.17 25)">Rota não encontrada entre esses pontos.</span>';return;}
+    if(st.routeLayer){st.map.removeLayer(st.routeLayer);st.routeLayer=null;}
+    if(st.originMarker){st.map.removeLayer(st.originMarker);st.originMarker=null;}
+    const coords=rd.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]);
+    st.routeLayer=L.polyline(coords,{color:'#3B5BDB',weight:5,opacity:0.85,lineJoin:'round'}).addTo(st.map);
+    st.originMarker=L.circleMarker([oLat,oLng],{radius:10,fillColor:'#22c55e',color:'#fff',weight:2.5,fillOpacity:1}).addTo(st.map).bindPopup('<b>Origem</b>').openPopup();
+    st.map.fitBounds(st.routeLayer.getBounds(),{padding:[30,30]});
+    const km=(rd.routes[0].distance/1000).toFixed(0);
+    const tot=Math.round(rd.routes[0].duration/60);
+    const h=Math.floor(tot/60),m=tot%60;
+    const dur=h>0?`${h}h ${m}min`:`${m} min`;
+    ri.innerHTML=`<span style="color:var(--blue);font-weight:600">✓ ${dest.cidade||''} – ${dest.estado||''} &nbsp;·&nbsp; ${Number(km).toLocaleString('pt-BR')} km &nbsp;·&nbsp; ${dur} de carro</span>`;
+  }catch(e){ri.innerHTML='<span style="color:oklch(0.55 0.17 25)">Erro ao calcular rota. Verifique sua conexão.</span>';console.error('[geo] route',e);}
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
