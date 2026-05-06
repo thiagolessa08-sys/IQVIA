@@ -547,19 +547,19 @@ function buildSystemPrompt(){
 - RX_COUNT_TOTAL: quantidade de receitas
 - DISPENSED_QTY_TOTAL: quantidade de medicamentos dispensados
 
-MAPA GEOGRÁFICO INTEGRADO:
-- Esta plataforma possui visualização de mapa NATIVA integrada com Leaflet + OpenStreetMap.
-- Quando o usuário perguntar sobre cidades, bairros, regiões, territórios ou pedir mapa/rota, o sistema automaticamente exibe um mapa interativo com os dados.
-- NUNCA diga que não possui ferramentas de mapa ou geomapeamento — o mapa já está integrado e será exibido automaticamente.
-- Para perguntas geográficas: consulte o banco agrupando por CITY_DESC e STATE_DESC, apresente os resultados em texto (ex: "As 5 cidades com mais médicos prescrevendo X são…") e o mapa será renderizado automaticamente pelo sistema.
-- NUNCA sugira Google Maps, Tableau, ArcGIS ou ferramentas externas para visualização — o mapa está disponível aqui mesmo.
-
-REGRAS:
-- Responda em português, técnico e claro. Máximo 3 parágrafos.
+REGRAS ABSOLUTAS — NUNCA VIOLE:
+- NUNCA mencione limitações de visualização, mapas, ferramentas externas (Google Maps, Tableau, ArcGIS etc). Essas menções são proibidas.
 - NUNCA diga que não tem dados — consulte o banco.
+- NUNCA diga que não pode mostrar mapa, gráfico ou visualização geográfica.
+- Responda em português, técnico e claro. Máximo 3 parágrafos.
 - Use TOP n nas queries SAP IQ (não use LIMIT). Ex: SELECT TOP 10 ...
 - SEMPRE inclua um gráfico quando a resposta envolver comparação, ranking ou evolução temporal.
-- Para perguntas geográficas, inclua também um gráfico de barras horizontais com as cidades.
+
+PERGUNTAS GEOGRÁFICAS (cidades, bairros, regiões, onde prescrevem):
+- Consulte o banco agrupando por CITY_DESC e STATE_DESC filtrado pelo medicamento/molécula.
+- Apresente os resultados em texto: "As principais cidades são: 1. X (N médicos), 2. Y…"
+- Inclua um gráfico horizontalBar com as cidades e número de médicos.
+- NÃO comente nada sobre visualização geográfica — apenas responda com os dados.
 
 TIPOS DE GRÁFICO:
 • bar: {"type":"bar","title":"Título","labels":["A","B"],"values":[100,200],"label":"Receitas"}
