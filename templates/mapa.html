@@ -143,6 +143,29 @@
   .panel-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px 20px;text-align:center;flex:1;color:var(--ink-3);}
   .panel-empty svg{opacity:.35;}
   .panel-empty p{font-size:13px;max-width:220px;line-height:1.55;margin:0;}
+
+  /* BREADCRUMB */
+  .breadcrumb-bar{flex-shrink:0;padding:8px 14px;border-bottom:1px solid var(--line);background:var(--surface-2);display:none;align-items:center;gap:4px;flex-wrap:wrap;}
+  .breadcrumb-bar.visible{display:flex;}
+  .bc-item{font-size:11.5px;font-weight:600;color:var(--ink-3);cursor:pointer;}
+  .bc-item:hover{color:var(--blue);text-decoration:underline;}
+  .bc-item.active{color:var(--ink);cursor:default;}
+  .bc-item.active:hover{text-decoration:none;color:var(--ink);}
+  .bc-sep{font-size:11px;color:var(--ink-3);opacity:.5;margin:0 2px;}
+  .btn-back{display:inline-flex;align-items:center;gap:5px;font-family:inherit;font-size:11.5px;font-weight:700;color:var(--blue);background:transparent;border:1px solid var(--blue);border-radius:999px;padding:3px 10px;cursor:pointer;transition:all .12s;margin-right:4px;}
+  .btn-back:hover{background:var(--blue);color:#fff;}
+  .btn-back svg{width:12px;height:12px;}
+
+  /* DOCTOR ITEM */
+  .doc-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:12px;cursor:default;border:1px solid transparent;}
+  .doc-item:hover{background:var(--surface-2);}
+  .doc-rank{width:24px;height:24px;border-radius:999px;background:var(--surface-2);color:var(--ink-3);font-size:10.5px;font-weight:800;display:grid;place-items:center;flex-shrink:0;}
+  .doc-item:first-child .doc-rank{background:var(--blue);color:#fff;}
+  .doc-info{flex:1;min-width:0;}
+  .doc-name{font-size:13px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .doc-crm{font-size:11px;color:var(--ink-3);}
+  .doc-rec{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:oklch(0.92 0.04 240);color:oklch(0.32 0.12 240);white-space:nowrap;flex-shrink:0;}
+  [data-theme="dark"] .doc-rec{background:oklch(0.28 0.08 240);color:oklch(0.72 0.12 240);}
 </style>
 </head>
 <body>
@@ -250,9 +273,9 @@
       <button class="limit-btn active" id="gb-cidade" onclick="setGroupby('cidade',this)">Cidade</button>
       <button class="limit-btn" id="gb-brick" onclick="setGroupby('brick',this)">Brick IMS</button>
       <span class="limit-label" style="margin-left:8px">Top:</span>
-      <button class="limit-btn active" onclick="setLimit(5,this)">5</button>
-      <button class="limit-btn" onclick="setLimit(10,this)">10</button>
-      <button class="limit-btn" onclick="setLimit(20,this)">20</button>
+      <button class="limit-btn active" onclick="setLimit(20,this)">20</button>
+      <button class="limit-btn" onclick="setLimit(50,this)">50</button>
+      <button class="limit-btn" onclick="setLimit(100,this)">100</button>
     </div>
     <div class="quick-drugs" id="quickDrugs">
       <span style="font-size:11.5px;color:var(--ink-3);font-weight:600;align-self:center">Mais prescritas:</span>
@@ -269,6 +292,19 @@
         <span class="panel-left-title" id="panelTitle">Cidades</span>
         <span class="result-count" id="resultCount">—</span>
       </div>
+      <!-- BREADCRUMB -->
+      <div class="breadcrumb-bar" id="breadcrumbBar">
+        <button class="btn-back" id="btnBack" onclick="drillBack()">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Voltar
+        </button>
+        <span class="bc-item" id="bc0" onclick="drillRoot()">Brasil</span>
+        <span class="bc-sep" id="bc1-sep" style="display:none">›</span>
+        <span class="bc-item" id="bc1" style="display:none"></span>
+        <span class="bc-sep" id="bc2-sep" style="display:none">›</span>
+        <span class="bc-item active" id="bc2" style="display:none"></span>
+      </div>
+
       <div class="cities-list" id="citiesList">
         <div class="panel-empty">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="1.8"/></svg>
@@ -315,9 +351,19 @@
 </style>
 
 <script>
+// ── Estado global ──────────────────────────────────────────────────────────
 let _map=null, _markers=[], _routeLayer=null, _originMarker=null;
-let _results=[], _selectedIdx=0, _limit=5, _groupby='cidade';
+let _results=[], _selectedIdx=0, _limit=20, _groupby='cidade';
 
+// Drill-down state
+let _drillLevel='cidade';   // 'cidade' | 'brick' | 'medico'
+let _drillQuery='';         // termo buscado
+let _drillCidade='';        // cidade selecionada no nível 1
+let _drillEstado='';        // estado da cidade
+let _drillBrick='';         // brick selecionado no nível 2
+let _drillCidadeCoords=null;// {lat,lng} para zoom ao entrar no nível brick
+
+// ── Formatação ─────────────────────────────────────────────────────────────
 function fmt(n){
   if(n==null)return'—';
   if(n>=1e6)return(n/1e6).toFixed(1)+'M';
@@ -326,9 +372,9 @@ function fmt(n){
 }
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 
+// ── Controles de busca ─────────────────────────────────────────────────────
 function setLimit(n,el){
   _limit=n;
-  // só remove active dos botões de limite (não dos de groupby)
   el.closest('.limit-row').querySelectorAll('.limit-btn').forEach(b=>{
     if(b.id&&b.id.startsWith('gb-'))return;
     b.classList.remove('active');
@@ -344,7 +390,6 @@ function setGroupby(mode,el){
 
 function quickSearch(drug){
   document.getElementById('drugInput').value=drug;
-  // apenas preenche o campo — usuário clica em "Buscar no Mapa"
 }
 
 function setStatus(msg,visible=true){
@@ -353,7 +398,7 @@ function setStatus(msg,visible=true){
   bar.classList.toggle('visible',visible);
 }
 
-// ── Inicializa Leaflet ─────────────────────────────────────────────────────
+// ── Leaflet ────────────────────────────────────────────────────────────────
 function initMap(){
   if(_map)return;
   document.getElementById('mapEmpty').style.display='none';
@@ -373,10 +418,72 @@ function clearRoute(){
   if(_originMarker){_map.removeLayer(_originMarker);_originMarker=null;}
 }
 
-// ── Busca principal ────────────────────────────────────────────────────────
+// ── Breadcrumb ─────────────────────────────────────────────────────────────
+function updateBreadcrumb(){
+  const bar=document.getElementById('breadcrumbBar');
+  const bc1=document.getElementById('bc1');
+  const bc1sep=document.getElementById('bc1-sep');
+  const bc2=document.getElementById('bc2');
+  const bc2sep=document.getElementById('bc2-sep');
+
+  if(_drillLevel==='cidade'){
+    bar.classList.remove('visible');
+    return;
+  }
+
+  bar.classList.add('visible');
+
+  if(_drillLevel==='brick'){
+    // Brasil › São Paulo
+    bc1.textContent=_drillCidade+(_drillEstado?' – '+_drillEstado:'');
+    bc1.className='bc-item active';
+    bc1.onclick=null;
+    bc1sep.style.display='';
+    bc1.style.display='';
+    bc2sep.style.display='none';
+    bc2.style.display='none';
+  } else if(_drillLevel==='medico'){
+    // Brasil › São Paulo › SAO PAULO NORTE
+    bc1.textContent=_drillCidade+(_drillEstado?' – '+_drillEstado:'');
+    bc1.className='bc-item';
+    bc1.style.display='';
+    bc1.onclick=()=>drillToBrick(_drillCidade,_drillEstado,true);
+    bc1sep.style.display='';
+    bc2.textContent=_drillBrick;
+    bc2.className='bc-item active';
+    bc2.style.display='';
+    bc2.onclick=null;
+    bc2sep.style.display='';
+  }
+}
+
+// ── Drill root (volta ao nível cidade) ─────────────────────────────────────
+function drillRoot(){
+  if(_drillLevel==='cidade')return;
+  _drillLevel='cidade';
+  _drillCidade='';_drillEstado='';_drillBrick='';
+  updateBreadcrumb();
+  doSearch();
+}
+
+// ── Back ──────────────────────────────────────────────────────────────────
+function drillBack(){
+  if(_drillLevel==='brick'){
+    drillRoot();
+  } else if(_drillLevel==='medico'){
+    drillToBrick(_drillCidade,_drillEstado,true);
+  }
+}
+
+// ── Nível 1: Busca cidades ─────────────────────────────────────────────────
 async function doSearch(){
   const drug=document.getElementById('drugInput').value.trim();
   if(!drug)return;
+  _drillQuery=drug;
+  _drillLevel='cidade';
+  _drillCidade='';_drillEstado='';_drillBrick='';
+  updateBreadcrumb();
+
   const btn=document.getElementById('searchBtn');
   btn.disabled=true;
   setStatus('Consultando banco de dados…');
@@ -384,7 +491,9 @@ async function doSearch(){
   document.getElementById('routeResult').innerHTML='';
 
   try{
-    const r=await fetch('/api/geo/prescritores-bairro?q='+encodeURIComponent(drug)+'&limit='+_limit+'&groupby='+_groupby);
+    const url='/api/geo/prescritores-bairro?q='+encodeURIComponent(drug)
+              +'&limit='+_limit+'&groupby='+_groupby;
+    const r=await fetch(url);
     const d=await r.json();
     if(!r.ok||d.erro){
       setStatus('Erro: '+(d.erro||'falha na consulta'),true);
@@ -392,20 +501,20 @@ async function doSearch(){
       btn.disabled=false;return;
     }
     if(!d.resultados||!d.resultados.length){
-      setStatus('Nenhuma cidade encontrada para "'+drug+'"',true);
+      setStatus('Nenhuma localidade encontrada para "'+drug+'"',true);
       setTimeout(()=>setStatus('',false),4000);
       btn.disabled=false;return;
     }
     _results=d.resultados;
     _selectedIdx=0;
-    const labelPlural = _groupby==='brick' ? 'Bricks' : 'Cidades';
+    const labelPlural=_groupby==='brick'?'Bricks':'Cidades';
     document.getElementById('panelTitle').textContent=labelPlural+' · '+d.termo;
     document.getElementById('resultCount').textContent=_results.length+' '+labelPlural.toLowerCase();
     renderCityList();
     initMap();
     clearMarkers();
-    setStatus('Geocodificando cidades…');
-    await geocodeAll();
+    setStatus('Geocodificando…');
+    await geocodeAll(_groupby);
     setStatus('',false);
   }catch(e){
     setStatus('Erro de conexão.',true);
@@ -414,16 +523,93 @@ async function doSearch(){
   btn.disabled=false;
 }
 
-// ── Lista lateral ──────────────────────────────────────────────────────────
+// ── Nível 2: Drill → Bricks de uma cidade ─────────────────────────────────
+async function drillToBrick(cidade,estado,fromBack=false){
+  if(!_drillQuery)return;
+  _drillLevel='brick';
+  _drillCidade=cidade;
+  _drillEstado=estado;
+  _drillBrick='';
+  updateBreadcrumb();
+
+  setStatus('Buscando Bricks em '+cidade+'…');
+  try{
+    const url='/api/geo/prescritores-bairro?q='+encodeURIComponent(_drillQuery)
+              +'&limit='+_limit+'&groupby=brick&cidade='+encodeURIComponent(cidade);
+    const r=await fetch(url);
+    const d=await r.json();
+    if(!r.ok||d.erro){
+      setStatus('Erro: '+(d.erro||'falha'),true);
+      setTimeout(()=>setStatus('',false),4000);return;
+    }
+    if(!d.resultados||!d.resultados.length){
+      setStatus('Nenhum Brick encontrado em '+cidade,true);
+      setTimeout(()=>setStatus('',false),4000);return;
+    }
+    _results=d.resultados;
+    _selectedIdx=0;
+    document.getElementById('panelTitle').textContent='Bricks · '+cidade;
+    document.getElementById('resultCount').textContent=_results.length+' bricks';
+    renderBrickList();
+
+    // Zoom para a cidade se não vier do back
+    if(!fromBack&&_drillCidadeCoords){
+      _map&&_map.setView([_drillCidadeCoords.lat,_drillCidadeCoords.lng],10,{animate:true});
+    }
+    setStatus('',false);
+  }catch(e){
+    setStatus('Erro de conexão.',true);
+    setTimeout(()=>setStatus('',false),4000);
+  }
+}
+
+// ── Nível 3: Drill → Médicos de um Brick ──────────────────────────────────
+async function drillToMedicos(brick){
+  if(!_drillQuery)return;
+  _drillLevel='medico';
+  _drillBrick=brick;
+  updateBreadcrumb();
+
+  setStatus('Buscando médicos em '+brick+'…');
+  try{
+    const url='/api/geo/medicos-brick?q='+encodeURIComponent(_drillQuery)
+              +'&brick='+encodeURIComponent(brick);
+    const r=await fetch(url);
+    const d=await r.json();
+    if(!r.ok||d.erro){
+      setStatus('Erro: '+(d.erro||'falha'),true);
+      setTimeout(()=>setStatus('',false),4000);return;
+    }
+    if(!d.resultados||!d.resultados.length){
+      setStatus('Nenhum médico encontrado em '+brick,true);
+      setTimeout(()=>setStatus('',false),4000);return;
+    }
+    _results=d.resultados;
+    _selectedIdx=0;
+    document.getElementById('panelTitle').textContent='Médicos · '+brick;
+    document.getElementById('resultCount').textContent=_results.length+' médicos';
+    renderMedicoList();
+    setStatus('',false);
+  }catch(e){
+    setStatus('Erro de conexão.',true);
+    setTimeout(()=>setStatus('',false),4000);
+  }
+}
+
+// ── Renderizações ──────────────────────────────────────────────────────────
 function renderCityList(){
   const list=document.getElementById('citiesList');
   const maxM=Math.max(..._results.map(r=>+(r.total_medicos||0)),1);
   const isBrick=_groupby==='brick';
   list.innerHTML=_results.map((r,i)=>{
-    const label   = isBrick ? (r.brick||'—') : (r.cidade||'—');
-    const sublabel= isBrick ? `${r.cidade||''} – ${r.estado||''}` : (r.estado||'');
+    const label   =isBrick?(r.brick||'—'):(r.cidade||'—');
+    const sublabel=isBrick?`${r.cidade||''} – ${r.estado||''}`:(r.estado||'');
+    // No modo cidade: clicar drilla para bricks dessa cidade
+    const clickFn=isBrick
+      ?`selectCity(${i})`
+      :`drillCity(${i})`;
     return `
-    <div class="city-item${i===_selectedIdx?' selected':''}" id="city-item-${i}" onclick="selectCity(${i})">
+    <div class="city-item${i===_selectedIdx?' selected':''}" id="city-item-${i}" onclick="${clickFn}" style="cursor:pointer">
       <div class="city-rank">${i+1}</div>
       <div class="city-info">
         <div class="city-name" title="${label}">${label}</div>
@@ -440,7 +626,61 @@ function renderCityList(){
   }).join('');
 }
 
+function renderBrickList(){
+  const list=document.getElementById('citiesList');
+  const maxM=Math.max(..._results.map(r=>+(r.total_medicos||0)),1);
+  list.innerHTML=_results.map((r,i)=>`
+    <div class="city-item${i===_selectedIdx?' selected':''}" id="city-item-${i}" onclick="drillBrick(${i})" style="cursor:pointer">
+      <div class="city-rank">${i+1}</div>
+      <div class="city-info">
+        <div class="city-name" title="${r.brick||'—'}">${r.brick||'—'}</div>
+        <div class="city-state">${r.cidade||''} – ${r.estado||''}</div>
+        <div class="city-bar-wrap">
+          <div class="city-bar" style="width:${Math.round((+(r.total_medicos||0)/maxM)*100)}%"></div>
+        </div>
+      </div>
+      <div class="city-stats">
+        <span class="stat-pill stat-med">${fmt(+(r.total_medicos||0))} méd.</span>
+        <span class="stat-pill stat-rec">${fmt(+(r.total_receitas||0))} rec.</span>
+      </div>
+    </div>`).join('');
+}
+
+function renderMedicoList(){
+  const list=document.getElementById('citiesList');
+  list.innerHTML=_results.map((r,i)=>`
+    <div class="doc-item" id="city-item-${i}">
+      <div class="doc-rank">${i+1}</div>
+      <div class="doc-info">
+        <div class="doc-name" title="${r.nome||r.crm||'—'}">${r.nome||r.crm||'—'}</div>
+        <div class="doc-crm">CRM: ${r.crm||'—'} &nbsp;·&nbsp; ${r.cidade||''} – ${r.estado||''}</div>
+      </div>
+      <span class="doc-rec">${fmt(+(r.total_receitas||0))} rec.</span>
+    </div>`).join('');
+}
+
+// ── Seleção / clique nas listas ────────────────────────────────────────────
+function drillCity(idx){
+  // Clique em cidade → drill para bricks
+  _selectedIdx=idx;
+  document.querySelectorAll('.city-item').forEach((el,i)=>el.classList.toggle('selected',i===idx));
+  const r=_results[idx];
+  // Guarda coordenadas da cidade para zoom posterior
+  const mk=_markers[idx];
+  if(mk)_drillCidadeCoords={lat:mk.lat,lng:mk.lng};
+  drillToBrick(r.cidade,r.estado);
+}
+
+function drillBrick(idx){
+  // Clique em brick → drill para médicos
+  _selectedIdx=idx;
+  document.querySelectorAll('.city-item').forEach((el,i)=>el.classList.toggle('selected',i===idx));
+  const r=_results[idx];
+  drillToMedicos(r.brick);
+}
+
 function selectCity(idx){
+  // Usado no modo brick do doSearch (groupby=brick direto)
   _selectedIdx=idx;
   document.querySelectorAll('.city-item').forEach((el,i)=>el.classList.toggle('selected',i===idx));
   const mk=_markers[idx];
@@ -448,25 +688,26 @@ function selectCity(idx){
 }
 
 // ── Geocodificação ─────────────────────────────────────────────────────────
-async function geocodeAll(){
+async function geocodeAll(groupby){
   const maxM=Math.max(..._results.map(r=>+(r.total_medicos||0)),1);
   const bounds=[];
-  for(let i=0;i<_results.length;i++){
+  // Limita geocoding a no máx 20 pontos (evitar lentidão com top 100)
+  const geocodeLimit=Math.min(_results.length,20);
+  for(let i=0;i<geocodeLimit;i++){
     if(i>0)await sleep(380);
     const r=_results[i];
-    const isBrick=_groupby==='brick';
-    const displayName = isBrick ? (r.brick||r.cidade||'') : (r.cidade||'');
-    setStatus(`Localizando ${displayName}… (${i+1}/${_results.length})`);
+    const isBrick=groupby==='brick';
+    const displayName=isBrick?(r.brick||r.cidade||''):(r.cidade||'');
+    setStatus(`Localizando ${displayName}… (${i+1}/${geocodeLimit})`);
     try{
-      // Geocoda sempre pela cidade + estado (bricks não são reconhecidos pelo Nominatim)
       const geoQ=encodeURIComponent((r.cidade||'')+','+(r.estado||'')+',Brasil');
       const res=await fetch(
         'https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+geoQ,
         {headers:{'Accept-Language':'pt-BR,pt;q=0.9','User-Agent':'PharmaAnalytics/1.0'}}
       );
-      const d=await res.json();
-      if(!d||!d.length)continue;
-      const lat=parseFloat(d[0].lat),lng=parseFloat(d[0].lon);
+      const gd=await res.json();
+      if(!gd||!gd.length)continue;
+      const lat=parseFloat(gd[0].lat),lng=parseFloat(gd[0].lon);
       if(isNaN(lat)||isNaN(lng))continue;
       bounds.push([lat,lng]);
       const sz=Math.round(10+((+(r.total_medicos||0))/maxM)*22);
@@ -475,9 +716,9 @@ async function geocodeAll(){
         radius:sz,fillColor:isTop?'#3B5BDB':'#003151',
         color:'#fff',weight:2,opacity:1,fillOpacity:isTop?0.95:0.72
       }).addTo(_map);
-      const popupTitle = isBrick
-        ? `<b>${r.brick||'?'}</b><br><span style="font-size:11px;color:#666">${r.cidade||''} – ${r.estado||''}</span>`
-        : `<b>${r.cidade||'?'} – ${r.estado||''}</b>`;
+      const popupTitle=isBrick
+        ?`<b>${r.brick||'?'}</b><br><span style="font-size:11px;color:#666">${r.cidade||''} – ${r.estado||''}</span>`
+        :`<b>${r.cidade||'?'} – ${r.estado||''}</b>`;
       mk.bindPopup(
         popupTitle+'<br>'+
         `👨‍⚕️ ${fmt(+(r.total_medicos||0))} médicos<br>`+
@@ -550,11 +791,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   const name=m?decodeURIComponent(m[1]):'Usuário';
   document.getElementById('userName').textContent=name;
   document.getElementById('userAvatar').textContent=name.charAt(0).toUpperCase();
-  // ?q= vindo do chat — apenas preenche o campo, não executa busca
   const q=new URLSearchParams(window.location.search).get('q');
   if(q) document.getElementById('drugInput').value=q;
-
-  // Carrega chips com moléculas reais da base
   loadMoleculasChips();
 });
 
@@ -567,7 +805,6 @@ async function loadMoleculasChips(){
       document.getElementById('chipsLoading').textContent='';
       return;
     }
-    // Remove o "carregando…" e insere os chips reais
     container.innerHTML='<span style="font-size:11.5px;color:var(--ink-3);font-weight:600;align-self:center">Mais prescritas:</span>';
     d.forEach(row=>{
       if(!row.molecula)return;
