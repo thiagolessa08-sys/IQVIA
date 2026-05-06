@@ -532,6 +532,32 @@ function appendMsg(role,text,typing=false){
 function showTyping(){appendMsg('ai','',true);}
 function hideTyping(){const el=document.getElementById('typingMsg');if(el)el.remove();}
 
+// Remove frases sobre limitações de mapa antes de exibir ao usuário
+function filterMapDisclaimer(text){
+  // Padrões de frases que a IA insere sobre falta de mapa — removemos silenciosamente
+  const patterns=[
+    // frases completas (terminadas em . ou ,)
+    /[^.!?\n]*(?:não (?:posso|tenho capacidade|consigo|é possível|tenho ferramentas?).*?(?:mapa|georreferenci|geomapea|visualização interativa|leaflet|openstreetmap)[^.!?\n]*[.!?]?/gi,
+    /[^.!?\n]*(?:mapa|georreferenci|geomapea).*?(?:não (?:está|estão|é|possível|disponível|integrado|tenho|consigo))[^.!?\n]*[.!?]?/gi,
+    /[^.!?\n]*(?:ferramentas? disponíveis?.*?(?:limitam|restringem|apenas).*?gráficos?)[^.!?\n]*[.!?]?/gi,
+    /[^.!?\n]*(?:google maps?|tableau|arcgis|power bi|qgis)[^.!?\n]*[.!?]?/gi,
+    /[^.!?\n]*(?:visuali(?:zar|zação|ze).*?(?:plataformas? externas?|outras? ferramentas?|softwares? de mapa))[^.!?\n]*[.!?]?/gi,
+    /[^.!?\n]*(?:inserindo as coordenadas|inserir as coordenadas)[^.!?\n]*[.!?]?/gi,
+    /[^.!?\n]*(?:infelizmente.*?(?:mapa|georreferenci|visualização geográfica))[^.!?\n]*[.!?]?/gi,
+    // sentenças que começam com "Quanto ao mapa"
+    /Quanto ao mapa[^.!?\n]*[.!?]?/gi,
+    // "o mapa será/será exibido/renderizado" — avisos redundantes
+    /[^.!?\n]*o mapa (?:será|será exibido|interativo será|foi)[^.!?\n]*[.!?]?/gi,
+  ];
+  let result=text;
+  for(const p of patterns){
+    result=result.replace(p,'');
+  }
+  // Limpa linhas vazias ou espaços extras resultantes da remoção
+  result=result.replace(/\n{3,}/g,'\n\n').replace(/^\s+|\s+$/g,'');
+  return result||text; // fallback: retorna original se filtro removeu tudo
+}
+
 function buildSystemPrompt(){
   return `Você é um analista sênior especializado em mercado farmacêutico brasileiro, com profundo conhecimento em moléculas, classes terapêuticas, marcas comerciais e dinâmica de prescrições médicas. Você tem acesso DIRETO à base de dados IQVIA de prescrições no SAP IQ (Sybase IQ).
 
@@ -765,10 +791,10 @@ async function sendMsg(textOverride){
     const reply=data.content?.filter(b=>b.type==='text').map(b=>b.text).join('')||'';
     if(!reply){appendMsg('ai','⚠ A IA retornou resposta vazia. Tente novamente.');chatHistory.pop();}
     else{
-      let finalReply=reply;
+      let finalReply=filterMapDisclaimer(reply);
       if(data.queries_executed&&data.queries_executed.length>0){
         const total=data.queries_executed.reduce((s,q)=>s+q.linhas,0);
-        finalReply=reply+`\n\n<div style="display:inline-flex;align-items:center;gap:6px;font-size:10.5px;color:var(--ink-3);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:4px 10px;margin-top:8px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="5" rx="9" ry="3" stroke="currentColor" stroke-width="1.8"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" stroke="currentColor" stroke-width="1.8"/></svg>${data.queries_executed.length} consulta(s) SQL · ${total.toLocaleString('pt-BR')} linhas analisadas</div>`;
+        finalReply=finalReply+`\n\n<div style="display:inline-flex;align-items:center;gap:6px;font-size:10.5px;color:var(--ink-3);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:4px 10px;margin-top:8px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="5" rx="9" ry="3" stroke="currentColor" stroke-width="1.8"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" stroke="currentColor" stroke-width="1.8"/></svg>${data.queries_executed.length} consulta(s) SQL · ${total.toLocaleString('pt-BR')} linhas analisadas</div>`;
       }
       const _ael=appendMsg('ai',finalReply);
       chatHistory.push({role:'assistant',content:reply});
