@@ -826,7 +826,7 @@ def admin_generate_static():
 def prescritores_ranking():
     # Arquivo gerado → serve direto, sem nenhuma query
     if os.path.exists(_STATIC_RANK):
-        with open(_STATIC_RANK, encoding="utf-8") as f:
+        with open(_STATIC_RANK, encoding="utf-8-sig") as f:  # utf-8-sig strips BOM gerado pelo PowerShell
             data = json.load(f)
         # ranking.json tem formato {"ranking": [...], "generated_at": "..."}
         rows = data.get("ranking", data) if isinstance(data, dict) else data
