@@ -534,28 +534,44 @@ function hideTyping(){const el=document.getElementById('typingMsg');if(el)el.rem
 
 // Remove frases sobre limitações de mapa antes de exibir ao usuário
 function filterMapDisclaimer(text){
-  // Padrões de frases que a IA insere sobre falta de mapa — removemos silenciosamente
-  const patterns=[
-    // frases completas (terminadas em . ou ,)
-    /[^.!?\n]*(?:não (?:posso|tenho capacidade|consigo|é possível|tenho ferramentas?).*?(?:mapa|georreferenci|geomapea|visualização interativa|leaflet|openstreetmap)[^.!?\n]*[.!?]?/gi,
-    /[^.!?\n]*(?:mapa|georreferenci|geomapea).*?(?:não (?:está|estão|é|possível|disponível|integrado|tenho|consigo))[^.!?\n]*[.!?]?/gi,
-    /[^.!?\n]*(?:ferramentas? disponíveis?.*?(?:limitam|restringem|apenas).*?gráficos?)[^.!?\n]*[.!?]?/gi,
-    /[^.!?\n]*(?:google maps?|tableau|arcgis|power bi|qgis)[^.!?\n]*[.!?]?/gi,
-    /[^.!?\n]*(?:visuali(?:zar|zação|ze).*?(?:plataformas? externas?|outras? ferramentas?|softwares? de mapa))[^.!?\n]*[.!?]?/gi,
-    /[^.!?\n]*(?:inserindo as coordenadas|inserir as coordenadas)[^.!?\n]*[.!?]?/gi,
-    /[^.!?\n]*(?:infelizmente.*?(?:mapa|georreferenci|visualização geográfica))[^.!?\n]*[.!?]?/gi,
-    // sentenças que começam com "Quanto ao mapa"
-    /Quanto ao mapa[^.!?\n]*[.!?]?/gi,
-    // "o mapa será/será exibido/renderizado" — avisos redundantes
-    /[^.!?\n]*o mapa (?:será|será exibido|interativo será|foi)[^.!?\n]*[.!?]?/gi,
+  // Palavras-chave que indicam frase sobre limitação de mapa
+  const GEO_BLOCK_KW=[
+    'georreferenci','geomapea','mapa interativo','mapa geográfico','mapa georreferenciado',
+    'google maps','tableau','arcgis','power bi','qgis',
+    'inserindo as coordenadas','inserir as coordenadas',
+    'não posso exibir','não tenho capacidade de gerar mapa','não consigo exibir mapa',
+    'não é possível exibir mapa','ferramentas de mapa','ferramenta de mapa',
+    'visualização geográfica interativa','nesta plataforma.*mapa','mapa.*nesta plataforma',
+    'preciso esclarecer.*mapa','esclarecer.*não posso.*mapa',
   ];
-  let result=text;
-  for(const p of patterns){
-    result=result.replace(p,'');
-  }
-  // Limpa linhas vazias ou espaços extras resultantes da remoção
-  result=result.replace(/\n{3,}/g,'\n\n').replace(/^\s+|\s+$/g,'');
-  return result||text; // fallback: retorna original se filtro removeu tudo
+
+  // Divide em sentenças (por . ! ? ou quebras de parágrafo)
+  // e remove cada sentença/parágrafo que conter qualquer keyword bloqueada
+  const sentences=text.split(/(?<=[.!?])\s+|\n{2,}/);
+  const filtered=sentences.filter(s=>{
+    const sl=s.toLowerCase();
+    // Remove se contiver keyword de bloqueio
+    if(GEO_BLOCK_KW.some(kw=>sl.includes(kw.toLowerCase())))return false;
+    // Remove se for "Desculpe" ou "Infelizmente" E mencionar mapa/visualização/plataforma
+    if(/^(desculpe|lamento|infelizmente)/i.test(s.trim())&&/mapa|visuali|plataforma|ferramenta/i.test(s))return false;
+    // Remove perguntas do tipo "Você gostaria que eu:" (follow-ups não solicitados sobre mapas)
+    if(/você gostaria que eu/i.test(s)&&/mapa|visuali|geográf/i.test(s))return false;
+    return true;
+  });
+
+  // Remove bullet points órfãos gerados após remoção de parágrafo introdutório
+  // Ex: "- Consultar X\n- Fazer Y" que ficam sem contexto após remoção do "Você gostaria que eu:"
+  let result=filtered.join('\n\n');
+
+  // Remove o bloco "Você gostaria que eu:\n- opção1\n- opção2..." completamente
+  result=result.replace(/você gostaria que eu[\s\S]{0,600}?(\n\n|$)/gi,'');
+
+  // Remove conectivos dangling ("Porém," / "No entanto," sozinhos no início de parágrafo)
+  result=result.replace(/^(porém|no entanto|contudo|todavia|entretanto)[,:]?\s*/gim,'');
+
+  // Limpa espaçamento
+  result=result.replace(/\n{3,}/g,'\n\n').trim();
+  return result||text;
 }
 
 function buildSystemPrompt(){
