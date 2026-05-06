@@ -246,7 +246,10 @@
       </button>
     </div>
     <div class="limit-row">
-      <span class="limit-label">Top cidades:</span>
+      <span class="limit-label">Agrupar por:</span>
+      <button class="limit-btn active" id="gb-cidade" onclick="setGroupby('cidade',this)">Cidade</button>
+      <button class="limit-btn" id="gb-brick" onclick="setGroupby('brick',this)">Brick IMS</button>
+      <span class="limit-label" style="margin-left:8px">Top:</span>
       <button class="limit-btn active" onclick="setLimit(5,this)">5</button>
       <button class="limit-btn" onclick="setLimit(10,this)">10</button>
       <button class="limit-btn" onclick="setLimit(20,this)">20</button>
@@ -313,7 +316,7 @@
 
 <script>
 let _map=null, _markers=[], _routeLayer=null, _originMarker=null;
-let _results=[], _selectedIdx=0, _limit=5;
+let _results=[], _selectedIdx=0, _limit=5, _groupby='cidade';
 
 function fmt(n){
   if(n==null)return'—';
@@ -325,8 +328,18 @@ function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 
 function setLimit(n,el){
   _limit=n;
-  document.querySelectorAll('.limit-btn').forEach(b=>b.classList.remove('active'));
+  // só remove active dos botões de limite (não dos de groupby)
+  el.closest('.limit-row').querySelectorAll('.limit-btn').forEach(b=>{
+    if(b.id&&b.id.startsWith('gb-'))return;
+    b.classList.remove('active');
+  });
   el.classList.add('active');
+}
+
+function setGroupby(mode,el){
+  _groupby=mode;
+  document.getElementById('gb-cidade').classList.toggle('active',mode==='cidade');
+  document.getElementById('gb-brick').classList.toggle('active',mode==='brick');
 }
 
 function quickSearch(drug){
@@ -371,7 +384,7 @@ async function doSearch(){
   document.getElementById('routeResult').innerHTML='';
 
   try{
-    const r=await fetch('/api/geo/prescritores-bairro?q='+encodeURIComponent(drug)+'&limit='+_limit);
+    const r=await fetch('/api/geo/prescritores-bairro?q='+encodeURIComponent(drug)+'&limit='+_limit+'&groupby='+_groupby);
     const d=await r.json();
     if(!r.ok||d.erro){
       setStatus('Erro: '+(d.erro||'falha na consulta'),true);
@@ -385,8 +398,9 @@ async function doSearch(){
     }
     _results=d.resultados;
     _selectedIdx=0;
-    document.getElementById('panelTitle').textContent='Cidades · '+d.termo;
-    document.getElementById('resultCount').textContent=_results.length+' cidades';
+    const labelPlural = _groupby==='brick' ? 'Bricks' : 'Cidades';
+    document.getElementById('panelTitle').textContent=labelPlural+' · '+d.termo;
+    document.getElementById('resultCount').textContent=_results.length+' '+labelPlural.toLowerCase();
     renderCityList();
     initMap();
     clearMarkers();
@@ -404,12 +418,16 @@ async function doSearch(){
 function renderCityList(){
   const list=document.getElementById('citiesList');
   const maxM=Math.max(..._results.map(r=>+(r.total_medicos||0)),1);
-  list.innerHTML=_results.map((r,i)=>`
+  const isBrick=_groupby==='brick';
+  list.innerHTML=_results.map((r,i)=>{
+    const label   = isBrick ? (r.brick||'—') : (r.cidade||'—');
+    const sublabel= isBrick ? `${r.cidade||''} – ${r.estado||''}` : (r.estado||'');
+    return `
     <div class="city-item${i===_selectedIdx?' selected':''}" id="city-item-${i}" onclick="selectCity(${i})">
       <div class="city-rank">${i+1}</div>
       <div class="city-info">
-        <div class="city-name">${r.cidade||'—'}</div>
-        <div class="city-state">${r.estado||''}</div>
+        <div class="city-name" title="${label}">${label}</div>
+        <div class="city-state">${sublabel}</div>
         <div class="city-bar-wrap">
           <div class="city-bar" style="width:${Math.round((+(r.total_medicos||0)/maxM)*100)}%"></div>
         </div>
@@ -418,7 +436,8 @@ function renderCityList(){
         <span class="stat-pill stat-med">${fmt(+(r.total_medicos||0))} méd.</span>
         <span class="stat-pill stat-rec">${fmt(+(r.total_receitas||0))} rec.</span>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function selectCity(idx){
@@ -435,11 +454,14 @@ async function geocodeAll(){
   for(let i=0;i<_results.length;i++){
     if(i>0)await sleep(380);
     const r=_results[i];
-    setStatus(`Localizando ${r.cidade||''}… (${i+1}/${_results.length})`);
+    const isBrick=_groupby==='brick';
+    const displayName = isBrick ? (r.brick||r.cidade||'') : (r.cidade||'');
+    setStatus(`Localizando ${displayName}… (${i+1}/${_results.length})`);
     try{
+      // Geocoda sempre pela cidade + estado (bricks não são reconhecidos pelo Nominatim)
+      const geoQ=encodeURIComponent((r.cidade||'')+','+(r.estado||'')+',Brasil');
       const res=await fetch(
-        'https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+
-        encodeURIComponent((r.cidade||'')+','+(r.estado||'')+',Brasil'),
+        'https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+geoQ,
         {headers:{'Accept-Language':'pt-BR,pt;q=0.9','User-Agent':'PharmaAnalytics/1.0'}}
       );
       const d=await res.json();
@@ -453,13 +475,16 @@ async function geocodeAll(){
         radius:sz,fillColor:isTop?'#3B5BDB':'#003151',
         color:'#fff',weight:2,opacity:1,fillOpacity:isTop?0.95:0.72
       }).addTo(_map);
+      const popupTitle = isBrick
+        ? `<b>${r.brick||'?'}</b><br><span style="font-size:11px;color:#666">${r.cidade||''} – ${r.estado||''}</span>`
+        : `<b>${r.cidade||'?'} – ${r.estado||''}</b>`;
       mk.bindPopup(
-        `<b>${r.cidade||'?'} – ${r.estado||''}</b><br>`+
+        popupTitle+'<br>'+
         `👨‍⚕️ ${fmt(+(r.total_medicos||0))} médicos<br>`+
         `📋 ${fmt(+(r.total_receitas||0))} receitas`
       );
       if(isTop)setTimeout(()=>mk.openPopup(),500);
-      _markers.push({mk,lat,lng,cidade:r.cidade,estado:r.estado});
+      _markers.push({mk,lat,lng,cidade:r.cidade,estado:r.estado,brick:r.brick||null});
     }catch(e){console.warn('geocode',r.cidade,e);}
   }
   if(bounds.length>1)_map.fitBounds(bounds,{padding:[50,50]});

@@ -941,32 +941,52 @@ def geo_moleculas_top():
 @login_required
 def geo_prescritores_bairro():
     """
-    Retorna top cidades com mais médicos que prescrevem um medicamento/molécula.
-    Parâmetros: q (termo de busca), limit (padrão 10, máx 20)
+    Retorna top localidades com mais médicos que prescrevem um medicamento/molécula.
+    Parâmetros:
+      q        — termo de busca (obrigatório)
+      limit    — máx resultados (padrão 10, máx 20)
+      groupby  — 'cidade' (padrão) ou 'brick'
     """
-    q_raw  = request.args.get("q", "").strip()
-    limit  = min(int(request.args.get("limit", "10")), 20)
+    q_raw   = request.args.get("q", "").strip()
+    limit   = min(int(request.args.get("limit", "10")), 20)
+    groupby = request.args.get("groupby", "cidade").lower()
+    if groupby not in ("cidade", "brick"):
+        groupby = "cidade"
     if not q_raw:
         return jsonify({"erro": "Parâmetro 'q' obrigatório"}), 400
-    # Sanitiza: remove chars que poderiam quebrar SQL
     q_safe = re.sub(r"[^A-Za-z0-9À-ÿ\s\-]", "", q_raw).strip()
     if not q_safe:
         return jsonify({"erro": "Termo de busca inválido"}), 400
     like_val = f"%{q_safe.upper()}%"
     try:
-        rows = query(f"""
-            SELECT TOP {limit}
-                   CITY_DESC  AS cidade,
-                   STATE_DESC AS estado,
-                   COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS total_medicos,
-                   SUM(RX_COUNT_TOTAL)               AS total_receitas
-            FROM prescricoes
-            WHERE UPPER(BRAND_NAME) LIKE ?
-               OR UPPER(COMBINED_MOLECULE_DESC) LIKE ?
-            GROUP BY CITY_DESC, STATE_DESC
-            ORDER BY COUNT(DISTINCT DOCTOR_DISPLAY_CD) DESC
-        """, (like_val, like_val))
-        return jsonify({"termo": q_safe, "resultados": rows})
+        if groupby == "brick":
+            rows = query(f"""
+                SELECT TOP {limit}
+                       IMS_BRICK_DESC AS brick,
+                       CITY_DESC      AS cidade,
+                       STATE_DESC     AS estado,
+                       COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS total_medicos,
+                       SUM(RX_COUNT_TOTAL)               AS total_receitas
+                FROM prescricoes
+                WHERE UPPER(BRAND_NAME) LIKE ?
+                   OR UPPER(COMBINED_MOLECULE_DESC) LIKE ?
+                GROUP BY IMS_BRICK_DESC, CITY_DESC, STATE_DESC
+                ORDER BY COUNT(DISTINCT DOCTOR_DISPLAY_CD) DESC
+            """, (like_val, like_val))
+        else:
+            rows = query(f"""
+                SELECT TOP {limit}
+                       CITY_DESC  AS cidade,
+                       STATE_DESC AS estado,
+                       COUNT(DISTINCT DOCTOR_DISPLAY_CD) AS total_medicos,
+                       SUM(RX_COUNT_TOTAL)               AS total_receitas
+                FROM prescricoes
+                WHERE UPPER(BRAND_NAME) LIKE ?
+                   OR UPPER(COMBINED_MOLECULE_DESC) LIKE ?
+                GROUP BY CITY_DESC, STATE_DESC
+                ORDER BY COUNT(DISTINCT DOCTOR_DISPLAY_CD) DESC
+            """, (like_val, like_val))
+        return jsonify({"termo": q_safe, "groupby": groupby, "resultados": rows})
     except Exception as e:
         return jsonify({"erro": str(e)}), 503
 
