@@ -264,6 +264,7 @@ _load_static_files()   # carrega JSON do repo em <1ms, sem rede
 USERS = {
     "admin@iqvia.com":              {"password": "Iqvia2026",   "name": "Admin IQVIA"},
     "marcio.amorim@sqltech.com.br": {"password": "Sqltech123",  "name": "Márcio Amorim"},
+    "fabio.chaves@iqvia.com":       {"password": "Fabio@2026",  "name": "Fábio Chaves"},
 }
 
 def login_required(f):
