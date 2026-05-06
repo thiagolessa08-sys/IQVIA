@@ -1208,6 +1208,11 @@ def prescritores_page():
 def chat_page():
     return render_template("chat.html")
 
+@app.route("/mapa")
+@login_required
+def mapa_page():
+    return render_template("mapa.html")
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)

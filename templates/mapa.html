@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1440">
+<title>Mapa de Prescrições — Pharma Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root,[data-theme="light"]{
+    --bg:oklch(0.97 0.006 220);--surface:#fff;--surface-2:oklch(0.95 0.01 220);
+    --ink:oklch(0.18 0.02 220);--ink-2:oklch(0.42 0.02 220);--ink-3:oklch(0.62 0.015 220);
+    --line:oklch(0.92 0.01 220);--line-2:oklch(0.88 0.012 220);
+    --shadow-sm:0 1px 3px rgba(0,0,0,.07);
+    --blue:oklch(0.48 0.13 240);--blue-deep:oklch(0.30 0.08 240);
+    --blue-soft:oklch(0.94 0.03 230);--radius:18px;
+  }
+  [data-theme="dark"]{
+    --bg:oklch(0.16 0.012 230);--surface:oklch(0.21 0.014 230);--surface-2:oklch(0.26 0.014 230);
+    --ink:oklch(0.96 0.006 95);--ink-2:oklch(0.78 0.01 220);--ink-3:oklch(0.58 0.012 220);
+    --line:oklch(0.28 0.014 230);--line-2:oklch(0.32 0.014 230);
+    --shadow-sm:0 1px 2px rgba(0,0,0,.35);
+    --blue:oklch(0.64 0.13 240);--blue-deep:oklch(0.26 0.07 240);--blue-soft:oklch(0.30 0.05 230);
+  }
+  *{box-sizing:border-box;}html,body{margin:0;padding:0;height:100%;}
+  body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;}
+
+  .app{display:grid;grid-template-columns:260px 1fr;height:100vh;overflow:hidden;}
+
+  /* SIDEBAR */
+  .sidebar{background:#003151;border-right:none;padding:26px 20px 20px;display:flex;flex-direction:column;gap:24px;overflow-y:auto;}
+  .brand{display:flex;flex-direction:column;align-items:center;gap:10px;padding:4px 0 10px;border-bottom:1px solid rgba(255,255,255,.10);margin-bottom:4px;}
+  .nav-label{font-size:11px;letter-spacing:.14em;color:rgba(255,255,255,.4);font-weight:600;padding:0 12px;text-transform:uppercase;margin-bottom:6px;}
+  .nav{display:flex;flex-direction:column;gap:2px;}
+  .nav a{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;color:rgba(255,255,255,.65);text-decoration:none;font-size:14px;font-weight:500;transition:all .15s;}
+  .nav a:hover{background:rgba(255,255,255,.10);color:#fff;}
+  .nav a.active{background:#3B5BDB;color:#fff;box-shadow:0 4px 14px rgba(59,91,219,.35);}
+  .nav a svg{width:18px;height:18px;flex:0 0 18px;}
+  .promo{margin-top:auto;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:18px;padding:18px;position:relative;overflow:hidden;}
+  .promo::before{content:"";position:absolute;inset:0;background:radial-gradient(80% 60% at 100% 100%,rgba(59,91,219,.6),transparent 70%);}
+  .promo>*{position:relative;}
+  .promo h4{margin:0 0 4px;font-size:15px;font-weight:700;}
+  .promo p{margin:0 0 14px;font-size:12.5px;color:rgba(255,255,255,.65);line-height:1.45;}
+
+  /* MAIN LAYOUT */
+  .main{display:flex;flex-direction:column;height:100vh;overflow:hidden;}
+
+  /* TOPBAR */
+  .topbar{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 28px;border-bottom:1px solid var(--line);background:var(--surface);}
+  .topbar-left{display:flex;align-items:center;gap:14px;}
+  .page-icon{width:40px;height:40px;border-radius:12px;background:var(--blue-soft);border:1px solid var(--blue);display:grid;place-items:center;color:var(--blue);flex-shrink:0;}
+  .page-title{font-size:18px;font-weight:800;color:var(--ink);letter-spacing:-.02em;}
+  .page-sub{font-size:12px;color:var(--ink-3);margin-top:1px;}
+  .topbar-right{display:flex;align-items:center;gap:10px;}
+  .theme-toggle{display:inline-flex;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:3px;gap:2px;}
+  .theme-toggle button{width:30px;height:30px;border:0;background:transparent;border-radius:999px;cursor:pointer;display:grid;place-items:center;color:var(--ink-3);font-family:inherit;}
+  .theme-toggle button.on{background:var(--blue);color:#fff;}
+  .theme-toggle svg{width:14px;height:14px;}
+  .user{display:flex;align-items:center;gap:8px;}
+  .avatar{width:36px;height:36px;border-radius:999px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;background:var(--blue);flex-shrink:0;}
+  .user-info .uname{font-size:13px;font-weight:700;line-height:1.2;}
+  .user-info .umail{font-size:11px;color:var(--ink-3);}
+
+  /* SEARCH BAR */
+  .search-band{flex-shrink:0;padding:16px 28px 14px;background:var(--surface);border-bottom:1px solid var(--line);}
+  .search-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .search-input-wrap{flex:1;min-width:260px;display:flex;align-items:center;gap:10px;background:var(--bg);border:1.5px solid var(--line);border-radius:12px;padding:10px 14px;transition:border-color .15s;}
+  .search-input-wrap:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px oklch(0.48 0.13 240/.10);}
+  .search-input-wrap svg{color:var(--ink-3);flex-shrink:0;}
+  .search-input{flex:1;border:none;outline:none;background:transparent;font-family:inherit;font-size:14px;color:var(--ink);}
+  .search-input::placeholder{color:var(--ink-3);}
+  .btn-search{display:flex;align-items:center;gap:8px;background:var(--blue);color:#fff;border:none;border-radius:12px;padding:10px 22px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:filter .15s;white-space:nowrap;flex-shrink:0;}
+  .btn-search:hover{filter:brightness(1.1);}
+  .btn-search:disabled{opacity:.5;cursor:not-allowed;filter:none;}
+  .limit-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;}
+  .limit-label{font-size:12px;color:var(--ink-3);font-weight:600;}
+  .limit-btn{font-family:inherit;font-size:12px;font-weight:700;padding:4px 12px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--ink-2);cursor:pointer;transition:all .12s;}
+  .limit-btn.active,.limit-btn:hover{background:var(--blue);color:#fff;border-color:var(--blue);}
+  .quick-drugs{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;}
+  .drug-chip{font-family:inherit;font-size:11.5px;font-weight:600;padding:4px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);cursor:pointer;transition:all .12s;}
+  .drug-chip:hover{background:var(--blue-soft);color:var(--blue);border-color:var(--blue);}
+
+  /* CONTENT AREA */
+  .content{flex:1;display:grid;grid-template-columns:320px 1fr;overflow:hidden;}
+
+  /* PANEL LEFT */
+  .panel-left{border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden;background:var(--surface);}
+  .panel-left-head{padding:14px 18px 10px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+  .panel-left-title{font-size:13px;font-weight:700;color:var(--ink);}
+  .result-count{font-size:11px;font-weight:700;color:var(--ink-3);background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:2px 9px;}
+  .cities-list{flex:1;overflow-y:auto;padding:8px 10px;}
+  .cities-list::-webkit-scrollbar{width:4px;}
+  .cities-list::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:999px;}
+  .city-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:12px;cursor:pointer;transition:background .12s;border:1px solid transparent;}
+  .city-item:hover{background:var(--surface-2);}
+  .city-item.selected{background:var(--blue-soft);border-color:var(--blue);}
+  .city-rank{width:24px;height:24px;border-radius:999px;background:var(--blue);color:#fff;font-size:10.5px;font-weight:800;display:grid;place-items:center;flex-shrink:0;}
+  .city-item:nth-child(n+2) .city-rank{background:oklch(0.90 0.01 220);color:var(--ink-3);}
+  [data-theme="dark"] .city-item:nth-child(n+2) .city-rank{background:var(--surface-2);color:var(--ink-3);}
+  .city-info{flex:1;min-width:0;}
+  .city-name{font-size:13px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .city-state{font-size:11px;color:var(--ink-3);}
+  .city-stats{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;}
+  .stat-pill{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap;}
+  .stat-med{background:oklch(0.92 0.04 240);color:oklch(0.32 0.12 240);}
+  .stat-rec{background:var(--surface-2);color:var(--ink-3);border:1px solid var(--line);}
+  [data-theme="dark"] .stat-med{background:oklch(0.28 0.08 240);color:oklch(0.72 0.12 240);}
+  .city-bar-wrap{margin-top:3px;}
+  .city-bar{height:3px;border-radius:999px;background:var(--blue);opacity:.6;transition:width .4s ease;}
+
+  /* ROUTE BAR */
+  .route-bar{flex-shrink:0;padding:12px 14px;border-top:1px solid var(--line);background:var(--surface-2);}
+  .route-bar-title{font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;}
+  .route-inputs{display:flex;gap:8px;align-items:center;}
+  .route-input{flex:1;border:1.5px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 12px;font-family:inherit;font-size:13px;color:var(--ink);outline:none;transition:border-color .15s;}
+  .route-input:focus{border-color:var(--blue);}
+  .route-input::placeholder{color:var(--ink-3);}
+  .btn-route{display:flex;align-items:center;gap:6px;background:var(--blue);color:#fff;border:none;border-radius:10px;padding:8px 14px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:filter .15s;white-space:nowrap;flex-shrink:0;}
+  .btn-route:hover{filter:brightness(1.12);}
+  .btn-route:disabled{opacity:.5;cursor:not-allowed;}
+  .route-result{margin-top:8px;font-size:12px;min-height:16px;}
+
+  /* MAP */
+  .map-wrap{flex:1;position:relative;}
+  #mainMap{width:100%;height:100%;}
+  .map-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--ink-3);pointer-events:none;}
+  .map-empty-icon{width:64px;height:64px;border-radius:20px;background:var(--surface-2);border:1px solid var(--line);display:grid;place-items:center;color:var(--blue);opacity:.5;}
+  .map-empty p{font-size:14px;text-align:center;max-width:280px;line-height:1.55;margin:0;}
+
+  /* STATUS */
+  .status-bar{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:6px 16px;font-size:12px;color:var(--ink-2);box-shadow:0 4px 16px rgba(0,0,0,.12);display:none;z-index:500;white-space:nowrap;}
+  .status-bar.visible{display:flex;align-items:center;gap:8px;}
+
+  /* Leaflet overrides */
+  .leaflet-pane{z-index:1!important;}
+  .leaflet-top,.leaflet-bottom{z-index:2!important;}
+  .leaflet-popup-content{font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;line-height:1.55;}
+  .leaflet-popup-content b{font-size:14px;}
+
+  /* Empty / loading states */
+  .panel-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px 20px;text-align:center;flex:1;color:var(--ink-3);}
+  .panel-empty svg{opacity:.35;}
+  .panel-empty p{font-size:13px;max-width:220px;line-height:1.55;margin:0;}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="brand">
+    <svg width="52" height="44" viewBox="0 0 52 44" fill="none">
+      <path d="M1 36 L15 8 L24 8 L15 26 L22 26 L36 0 L45 0 L26 36 Z" fill="white" opacity="0.40"/>
+      <path d="M7 44 L21 16 L30 16 L21 34 L28 34 L42 8 L51 8 L32 44 Z" fill="white" opacity="0.90"/>
+    </svg>
+    <div style="text-align:center;">
+      <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:800;color:#fff;letter-spacing:.08em;line-height:1.2;text-transform:uppercase;">Pharma Analytics</div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-label">Análises</div>
+    <nav class="nav" style="margin-top:8px">
+      <a href="/market">
+        <svg viewBox="0 0 24 24" fill="none"><line x1="18" y1="20" x2="18" y2="10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="12" y1="20" x2="12" y2="4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="6" y1="20" x2="6" y2="14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Market Intelligence
+      </a>
+      <a href="/prescritores">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Prescritores
+      </a>
+      <a href="/chat">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Chat IA
+      </a>
+      <a class="active" href="/mapa">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="1.8"/></svg>
+        Mapa de Prescrições
+      </a>
+    </nav>
+  </div>
+  <div>
+    <div class="nav-label">Admin</div>
+    <nav class="nav" style="margin-top:8px">
+      <a href="/admin/load">
+        <svg viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="5" rx="9" ry="3" stroke="currentColor" stroke-width="1.8"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Carga de Dados
+      </a>
+      <a href="/logout">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Sair
+      </a>
+    </nav>
+  </div>
+  <div class="promo">
+    <h4>Dados ao vivo</h4>
+    <p>Busca direto no SAP IQ — sem cache, resultados sempre atualizados.</p>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="page-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="1.8"/></svg>
+      </div>
+      <div>
+        <div class="page-title">Mapa de Prescrições</div>
+        <div class="page-sub">Cidades com mais médicos prescrevendo por medicamento</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="theme-toggle">
+        <button id="theme-light" class="on" aria-label="Tema claro">
+          <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <button id="theme-dark" aria-label="Tema escuro">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      <div class="user">
+        <div class="avatar" id="userAvatar">U</div>
+        <div class="user-info">
+          <div class="uname" id="userName">Usuário</div>
+          <div class="umail">Pharma Analytics</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SEARCH BAND -->
+  <div class="search-band">
+    <div class="search-row">
+      <div class="search-input-wrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <input class="search-input" id="drugInput" placeholder="Digite o medicamento ou molécula… (ex: Metformina, Losartana, Escitalopram)"
+          onkeydown="if(event.key==='Enter')doSearch()">
+      </div>
+      <button class="btn-search" id="searchBtn" onclick="doSearch()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="1.8"/></svg>
+        Buscar no Mapa
+      </button>
+    </div>
+    <div class="limit-row">
+      <span class="limit-label">Top cidades:</span>
+      <button class="limit-btn active" onclick="setLimit(5,this)">5</button>
+      <button class="limit-btn" onclick="setLimit(10,this)">10</button>
+      <button class="limit-btn" onclick="setLimit(20,this)">20</button>
+    </div>
+    <div class="quick-drugs">
+      <span style="font-size:11.5px;color:var(--ink-3);font-weight:600;align-self:center">Acesso rápido:</span>
+      <button class="drug-chip" onclick="quickSearch('Metformina')">Metformina</button>
+      <button class="drug-chip" onclick="quickSearch('Losartana')">Losartana</button>
+      <button class="drug-chip" onclick="quickSearch('Atorvastatina')">Atorvastatina</button>
+      <button class="drug-chip" onclick="quickSearch('Escitalopram')">Escitalopram</button>
+      <button class="drug-chip" onclick="quickSearch('Omeprazol')">Omeprazol</button>
+      <button class="drug-chip" onclick="quickSearch('Amlodipina')">Amlodipina</button>
+      <button class="drug-chip" onclick="quickSearch('Sertralina')">Sertralina</button>
+      <button class="drug-chip" onclick="quickSearch('Levotiroxina')">Levotiroxina</button>
+    </div>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <!-- PANEL LEFT: lista de cidades -->
+    <div class="panel-left">
+      <div class="panel-left-head">
+        <span class="panel-left-title" id="panelTitle">Cidades</span>
+        <span class="result-count" id="resultCount">—</span>
+      </div>
+      <div class="cities-list" id="citiesList">
+        <div class="panel-empty">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="1.8"/></svg>
+          <p>Busque um medicamento para ver as cidades com mais prescrições</p>
+        </div>
+      </div>
+      <div class="route-bar">
+        <div class="route-bar-title">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:4px"><path d="M3 11l19-9-9 19-2-8-8-2z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Traçar rota até cidade selecionada
+        </div>
+        <div class="route-inputs">
+          <input class="route-input" id="routeFrom" placeholder="Partir de: endereço ou cidade…" onkeydown="if(event.key==='Enter')doRoute()">
+          <button class="btn-route" id="routeBtn" onclick="doRoute()">Rota</button>
+        </div>
+        <div class="route-result" id="routeResult"></div>
+      </div>
+    </div>
+
+    <!-- MAP -->
+    <div class="map-wrap">
+      <div id="mainMap"></div>
+      <div class="map-empty" id="mapEmpty">
+        <div class="map-empty-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="1.8"/></svg>
+        </div>
+        <p>Busque um medicamento acima para visualizar o mapa de prescrições</p>
+      </div>
+      <div class="status-bar" id="statusBar">
+        <div class="typing"><span></span><span></span><span></span></div>
+        <span id="statusMsg">Carregando…</span>
+      </div>
+    </div>
+
+  </div>
+</main>
+</div>
+
+<style>
+.typing{display:inline-flex;gap:3px;align-items:center;}
+.typing span{width:5px;height:5px;border-radius:50%;background:var(--blue);animation:bounce 1.2s infinite;}
+.typing span:nth-child(2){animation-delay:.2s}.typing span:nth-child(3){animation-delay:.4s}
+@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-4px)}}
+</style>
+
+<script>
+let _map=null, _markers=[], _routeLayer=null, _originMarker=null;
+let _results=[], _selectedIdx=0, _limit=5;
+
+function fmt(n){
+  if(n==null)return'—';
+  if(n>=1e6)return(n/1e6).toFixed(1)+'M';
+  if(n>=1e3)return(n/1e3).toFixed(1)+'K';
+  return Number(n).toLocaleString('pt-BR');
+}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+function setLimit(n,el){
+  _limit=n;
+  document.querySelectorAll('.limit-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function quickSearch(drug){
+  document.getElementById('drugInput').value=drug;
+  doSearch();
+}
+
+function setStatus(msg,visible=true){
+  const bar=document.getElementById('statusBar');
+  document.getElementById('statusMsg').textContent=msg;
+  bar.classList.toggle('visible',visible);
+}
+
+// ── Inicializa Leaflet ─────────────────────────────────────────────────────
+function initMap(){
+  if(_map)return;
+  document.getElementById('mapEmpty').style.display='none';
+  _map=L.map('mainMap',{zoomControl:true,scrollWheelZoom:true}).setView([-15,-50],4);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
+    maxZoom:18
+  }).addTo(_map);
+}
+
+function clearMarkers(){
+  _markers.forEach(m=>_map&&_map.removeLayer(m.mk));
+  _markers=[];
+}
+function clearRoute(){
+  if(_routeLayer){_map.removeLayer(_routeLayer);_routeLayer=null;}
+  if(_originMarker){_map.removeLayer(_originMarker);_originMarker=null;}
+}
+
+// ── Busca principal ────────────────────────────────────────────────────────
+async function doSearch(){
+  const drug=document.getElementById('drugInput').value.trim();
+  if(!drug)return;
+  const btn=document.getElementById('searchBtn');
+  btn.disabled=true;
+  setStatus('Consultando banco de dados…');
+  clearRoute();
+  document.getElementById('routeResult').innerHTML='';
+
+  try{
+    const r=await fetch('/api/geo/prescritores-bairro?q='+encodeURIComponent(drug)+'&limit='+_limit);
+    const d=await r.json();
+    if(!r.ok||d.erro){
+      setStatus('Erro: '+(d.erro||'falha na consulta'),true);
+      setTimeout(()=>setStatus('',false),4000);
+      btn.disabled=false;return;
+    }
+    if(!d.resultados||!d.resultados.length){
+      setStatus('Nenhuma cidade encontrada para "'+drug+'"',true);
+      setTimeout(()=>setStatus('',false),4000);
+      btn.disabled=false;return;
+    }
+    _results=d.resultados;
+    _selectedIdx=0;
+    document.getElementById('panelTitle').textContent='Cidades · '+d.termo;
+    document.getElementById('resultCount').textContent=_results.length+' cidades';
+    renderCityList();
+    initMap();
+    clearMarkers();
+    setStatus('Geocodificando cidades…');
+    await geocodeAll();
+    setStatus('',false);
+  }catch(e){
+    setStatus('Erro de conexão.',true);
+    setTimeout(()=>setStatus('',false),4000);
+  }
+  btn.disabled=false;
+}
+
+// ── Lista lateral ──────────────────────────────────────────────────────────
+function renderCityList(){
+  const list=document.getElementById('citiesList');
+  const maxM=Math.max(..._results.map(r=>+(r.total_medicos||0)),1);
+  list.innerHTML=_results.map((r,i)=>`
+    <div class="city-item${i===_selectedIdx?' selected':''}" id="city-item-${i}" onclick="selectCity(${i})">
+      <div class="city-rank">${i+1}</div>
+      <div class="city-info">
+        <div class="city-name">${r.cidade||'—'}</div>
+        <div class="city-state">${r.estado||''}</div>
+        <div class="city-bar-wrap">
+          <div class="city-bar" style="width:${Math.round((+(r.total_medicos||0)/maxM)*100)}%"></div>
+        </div>
+      </div>
+      <div class="city-stats">
+        <span class="stat-pill stat-med">${fmt(+(r.total_medicos||0))} méd.</span>
+        <span class="stat-pill stat-rec">${fmt(+(r.total_receitas||0))} rec.</span>
+      </div>
+    </div>`).join('');
+}
+
+function selectCity(idx){
+  _selectedIdx=idx;
+  document.querySelectorAll('.city-item').forEach((el,i)=>el.classList.toggle('selected',i===idx));
+  const mk=_markers[idx];
+  if(mk&&_map){_map.setView([mk.lat,mk.lng],9,{animate:true});mk.mk.openPopup();}
+}
+
+// ── Geocodificação ─────────────────────────────────────────────────────────
+async function geocodeAll(){
+  const maxM=Math.max(..._results.map(r=>+(r.total_medicos||0)),1);
+  const bounds=[];
+  for(let i=0;i<_results.length;i++){
+    if(i>0)await sleep(380);
+    const r=_results[i];
+    setStatus(`Localizando ${r.cidade||''}… (${i+1}/${_results.length})`);
+    try{
+      const res=await fetch(
+        'https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+
+        encodeURIComponent((r.cidade||'')+','+(r.estado||'')+',Brasil'),
+        {headers:{'Accept-Language':'pt-BR,pt;q=0.9','User-Agent':'PharmaAnalytics/1.0'}}
+      );
+      const d=await res.json();
+      if(!d||!d.length)continue;
+      const lat=parseFloat(d[0].lat),lng=parseFloat(d[0].lon);
+      if(isNaN(lat)||isNaN(lng))continue;
+      bounds.push([lat,lng]);
+      const sz=Math.round(10+((+(r.total_medicos||0))/maxM)*22);
+      const isTop=i===0;
+      const mk=L.circleMarker([lat,lng],{
+        radius:sz,fillColor:isTop?'#3B5BDB':'#003151',
+        color:'#fff',weight:2,opacity:1,fillOpacity:isTop?0.95:0.72
+      }).addTo(_map);
+      mk.bindPopup(
+        `<b>${r.cidade||'?'} – ${r.estado||''}</b><br>`+
+        `👨‍⚕️ ${fmt(+(r.total_medicos||0))} médicos<br>`+
+        `📋 ${fmt(+(r.total_receitas||0))} receitas`
+      );
+      if(isTop)setTimeout(()=>mk.openPopup(),500);
+      _markers.push({mk,lat,lng,cidade:r.cidade,estado:r.estado});
+    }catch(e){console.warn('geocode',r.cidade,e);}
+  }
+  if(bounds.length>1)_map.fitBounds(bounds,{padding:[50,50]});
+  else if(bounds.length===1)_map.setView(bounds[0],8);
+}
+
+// ── Rota ──────────────────────────────────────────────────────────────────
+async function doRoute(){
+  const fromVal=document.getElementById('routeFrom').value.trim();
+  const ri=document.getElementById('routeResult');
+  if(!fromVal){ri.innerHTML='<span style="color:var(--ink-3)">Digite o endereço de partida.</span>';return;}
+  if(!_markers.length){ri.innerHTML='<span style="color:var(--ink-3)">Primeiro busque um medicamento.</span>';return;}
+  const btn=document.getElementById('routeBtn');
+  btn.disabled=true;
+  ri.innerHTML='<span style="color:var(--ink-3)">Calculando rota…</span>';
+  try{
+    await sleep(200);
+    const og=await fetch(
+      'https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(fromVal+',Brasil'),
+      {headers:{'Accept-Language':'pt-BR','User-Agent':'PharmaAnalytics/1.0'}}
+    );
+    const od=await og.json();
+    if(!od||!od.length){ri.innerHTML='<span style="color:#dc2626">Endereço não encontrado. Tente adicionar a cidade.</span>';btn.disabled=false;return;}
+    const oLat=parseFloat(od[0].lat),oLng=parseFloat(od[0].lon);
+    const dest=_markers[_selectedIdx]||_markers[0];
+    const rr=await fetch(
+      `https://router.project-osrm.org/route/v1/driving/${oLng},${oLat};${dest.lng},${dest.lat}?overview=full&geometries=geojson`
+    );
+    const rd=await rr.json();
+    if(rd.code!=='Ok'||!rd.routes||!rd.routes.length){ri.innerHTML='<span style="color:#dc2626">Rota não encontrada entre esses pontos.</span>';btn.disabled=false;return;}
+    clearRoute();
+    const coords=rd.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]);
+    _routeLayer=L.polyline(coords,{color:'#3B5BDB',weight:5,opacity:0.85,lineJoin:'round'}).addTo(_map);
+    _originMarker=L.circleMarker([oLat,oLng],{radius:11,fillColor:'#22c55e',color:'#fff',weight:2.5,fillOpacity:1})
+      .addTo(_map).bindPopup('<b>Origem</b>').openPopup();
+    _map.fitBounds(_routeLayer.getBounds(),{padding:[40,40]});
+    const km=(rd.routes[0].distance/1000).toFixed(0);
+    const tot=Math.round(rd.routes[0].duration/60);
+    const h=Math.floor(tot/60),m=tot%60;
+    const dur=h>0?`${h}h ${m}min`:`${m} min`;
+    ri.innerHTML=`<span style="color:var(--blue);font-weight:700">✓ ${dest.cidade} – ${dest.estado} &nbsp;·&nbsp; ${Number(km).toLocaleString('pt-BR')} km &nbsp;·&nbsp; ${dur} de carro</span>`;
+  }catch(e){ri.innerHTML='<span style="color:#dc2626">Erro ao calcular rota.</span>';console.error(e);}
+  btn.disabled=false;
+}
+
+// ── Theme ─────────────────────────────────────────────────────────────────
+(function(){
+  const root=document.documentElement;
+  const apply=mode=>{
+    root.setAttribute('data-theme',mode);
+    localStorage.setItem('iqvia-theme',mode);
+    document.getElementById('theme-light').classList.toggle('on',mode==='light');
+    document.getElementById('theme-dark').classList.toggle('on',mode==='dark');
+  };
+  apply(localStorage.getItem('iqvia-theme')||'light');
+  document.getElementById('theme-light').addEventListener('click',()=>apply('light'));
+  document.getElementById('theme-dark').addEventListener('click',()=>apply('dark'));
+})();
+
+// ── Init ──────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded',()=>{
+  const m=document.cookie.match(/user_name=([^;]+)/);
+  const name=m?decodeURIComponent(m[1]):'Usuário';
+  document.getElementById('userName').textContent=name;
+  document.getElementById('userAvatar').textContent=name.charAt(0).toUpperCase();
+  // suporte a ?q= vindo do chat
+  const q=new URLSearchParams(window.location.search).get('q');
+  if(q){document.getElementById('drugInput').value=q;doSearch();}
+});
+</script>
+</body>
+</html>
