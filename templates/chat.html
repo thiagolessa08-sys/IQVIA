@@ -124,6 +124,12 @@
   .msg-bubble em{font-style:italic;}
   .msg-bubble code{font-family:'JetBrains Mono',monospace;font-size:11.5px;background:rgba(0,0,0,.07);padding:1px 5px;border-radius:4px;}
   .msg.user .msg-bubble code{background:rgba(255,255,255,.2);}
+  .msg-bubble p{margin:0 0 7px;}
+  .msg-bubble p:last-child{margin-bottom:0;}
+  .msg-bubble ol,.msg-bubble ul{margin:4px 0 8px 18px;padding:0;}
+  .msg-bubble li{margin-bottom:4px;line-height:1.65;}
+  .msg-bubble h4{margin:8px 0 4px;font-size:13.5px;font-weight:700;}
+  .msg-bubble hr{border:none;border-top:1px solid var(--line);margin:8px 0;}
 
   /* TYPING */
   .typing{display:inline-flex;gap:4px;align-items:center;}
@@ -390,13 +396,69 @@ function fmt(n){
 function now(){return new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
 function isDark(){return document.documentElement.getAttribute('data-theme')==='dark';}
 
-function renderMarkdown(txt){
+// ── Inline markdown (bold, italic, code) ─────────────────────────────────
+function inlineMd(txt){
   return txt
     .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
     .replace(/\*(.*?)\*/g,'<em>$1</em>')
-    .replace(/`([^`]+)`/g,'<code>$1</code>')
-    .replace(/\n\n/g,'<br><br>')
-    .replace(/\n/g,'<br>');
+    .replace(/`([^`]+)`/g,'<code>$1</code>');
+}
+
+// ── Markdown completo com listas, parágrafos e cabeçalhos ─────────────────
+function renderMarkdown(raw){
+  // Normaliza quebras de linha
+  let txt = raw.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+
+  // Corrige "2.\n\nConteúdo" ou "2.\nConteúdo" — número separado do texto
+  txt = txt.replace(/^(\d+\.)\s*\n+(?=\S)/gm,'$1 ');
+  // Corrige "- \n\nConteúdo"
+  txt = txt.replace(/^([-•*])\s*\n+(?=\S)/gm,'$1 ');
+
+  // Divide em blocos (parágrafos) por linha dupla
+  const paragraphs = txt.split(/\n{2,}/);
+  let html = '';
+  let listType = null, listItems = [];
+
+  function flushList(){
+    if(!listItems.length) return;
+    const tag = listType==='ol'?'ol':'ul';
+    html += `<${tag}>${listItems.map(i=>`<li>${inlineMd(i)}</li>`).join('')}</${tag}>`;
+    listType = null; listItems = [];
+  }
+
+  for(const para of paragraphs){
+    const trimmed = para.trim();
+    if(!trimmed) continue;
+
+    const lines = trimmed.split('\n').map(l=>l.trim()).filter(Boolean);
+
+    const isOl = lines.every(l=>/^\d+\.\s+/.test(l));
+    const isUl = lines.every(l=>/^[-•*]\s+/.test(l));
+
+    if(isOl){
+      if(listType && listType!=='ol') flushList();
+      listType='ol';
+      lines.forEach(l=>listItems.push(l.replace(/^\d+\.\s+/,'')));
+    } else if(isUl){
+      if(listType && listType!=='ul') flushList();
+      listType='ul';
+      lines.forEach(l=>listItems.push(l.replace(/^[-•*]\s+/,'')));
+    } else {
+      flushList();
+      if(/^#{1,3}\s/.test(trimmed)){
+        // Cabeçalho → negrito compacto
+        const content = trimmed.replace(/^#{1,3}\s+/,'');
+        html += `<h4>${inlineMd(content)}</h4>`;
+      } else if(/^---+$/.test(trimmed)){
+        html += '<hr>';
+      } else {
+        // Parágrafo normal — quebras simples viram <br>
+        html += `<p>${lines.map(l=>inlineMd(l)).join('<br>')}</p>`;
+      }
+    }
+  }
+  flushList();
+  return html || inlineMd(raw); // fallback se nada renderizar
 }
 
 // ── Chart rendering ──────────────────────────────────────────────────────
@@ -781,7 +843,10 @@ EXEMPLOS DE INTERPRETAÇÃO:
 
 ━━ REGRAS ABSOLUTAS — NUNCA VIOLE ━━
 - NUNCA mencione limitações de visualização, mapas ou ferramentas externas. Proibido.
-- NUNCA diga que não tem dados — consulte o banco.
+- NUNCA diga que não tem dados SEM ANTES executar uma query. Obrigatório consultar o banco primeiro.
+- NUNCA especule sobre disponibilidade de dados (ex: "pode estar focado em ambulatorial", "pode estar codificado diferente") sem ter feito a query. Execute a query, veja o resultado, aí responda.
+- Se a query retornar zero resultados, tente variações: busque por BRAND_NAME LIKE, depois por COMBINED_MOLECULE_DESC LIKE, depois por termos parciais.
+- Ondansetrona existe no banco. Busque: UPPER(COMBINED_MOLECULE_DESC) LIKE '%ONDANSETRON%' ou UPPER(BRAND_NAME) LIKE '%ONDANSETRO%'.
 - Responda em português, técnico e claro. Máximo 3 parágrafos.
 - Use TOP n nas queries SAP IQ (não use LIMIT). Ex: SELECT TOP 10 ...
 - SEMPRE inclua gráfico quando houver comparação, ranking ou evolução temporal.
