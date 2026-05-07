@@ -1205,7 +1205,7 @@ def chat():
 
     call = {
         "model":      payload.get("model", "claude-haiku-4-5-20251001"),
-        "max_tokens": payload.get("max_tokens", 512),
+        "max_tokens": payload.get("max_tokens", 1024),
         "system":     system_final,
         "tools":      [query_tool],
         "messages":   msgs
