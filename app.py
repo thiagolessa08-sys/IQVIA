@@ -96,71 +96,174 @@ def _direct_query(sql):
                 return []
 
 def adapt_sql(sql):
-    """Redireciona 'prescricoes' → tabela real, corrige sintaxe SAP IQ e
-    normaliza nomes de colunas inventados pela IA para os nomes reais."""
+    """
+    Normaliza e corrige SQL gerado pela IA para compatibilidade com SAP IQ 16.
+    Correções aplicadas (em ordem):
+      1. Alias de tabela (prescricoes → tabela real)
+      2. LIMIT → TOP
+      3. SELECT TOP n DISTINCT → SELECT DISTINCT TOP n
+      4. Funções incompatíveis (CONCAT, ISNULL, GETDATE, LEN, CONVERT, etc.)
+      5. DOCTOR_NAME → expressão com FIRST_NM e SURNM_NM
+      6. Alias de colunas inventadas pela IA → nomes reais
+    """
 
-    # 1. Alias de tabela
-    sql = re.sub(r'\bprescricoes\b', TABLE_PRESC, sql)
+    # ── 1. Alias de tabela ─────────────────────────────────────────────────
+    sql = re.sub(r'\bprescricoes\b', TABLE_PRESC, sql, flags=re.IGNORECASE)
 
-    # 2. LIMIT → TOP
+    # ── 2. LIMIT n → TOP n ─────────────────────────────────────────────────
     m = re.search(r'\bLIMIT\s+(\d+)\s*;?\s*$', sql.strip(), re.IGNORECASE)
     if m:
         n   = m.group(1)
         sql = re.sub(r'\bLIMIT\s+\d+\s*;?\s*$', '', sql.strip(), flags=re.IGNORECASE).rstrip()
         sql = re.sub(r'^(\s*SELECT\s)', f'SELECT TOP {n} ', sql, flags=re.IGNORECASE, count=1)
 
-    # 3. Corrige "SELECT TOP n DISTINCT" → "SELECT DISTINCT TOP n"
-    #    SAP IQ exige DISTINCT antes de TOP
+    # ── 3. SELECT TOP n DISTINCT → SELECT DISTINCT TOP n ──────────────────
     sql = re.sub(
         r'\bSELECT\s+TOP\s+(\d+)\s+DISTINCT\b',
         r'SELECT DISTINCT TOP \1',
         sql, flags=re.IGNORECASE
     )
 
-    # 4. Normaliza nomes de colunas inventados pela IA → nomes reais da tabela
+    # ── 4. Funções SQL incompatíveis com SAP IQ ────────────────────────────
+
+    # CONCAT(a, b, ...) → a || b || ...
+    def _concat_to_pipe(m):
+        args = m.group(1)
+        # divide por vírgula respeitando parênteses aninhados
+        parts, depth, buf = [], 0, ''
+        for ch in args:
+            if ch == '(' : depth += 1
+            elif ch == ')': depth -= 1
+            if ch == ',' and depth == 0:
+                parts.append(buf.strip()); buf = ''
+            else:
+                buf += ch
+        if buf.strip(): parts.append(buf.strip())
+        return ' || '.join(parts)
+    sql = re.sub(r'\bCONCAT\s*\(([^)]+)\)', _concat_to_pipe, sql, flags=re.IGNORECASE)
+
+    # ISNULL(x, y) → COALESCE(x, y)
+    sql = re.sub(r'\bISNULL\s*\(', 'COALESCE(', sql, flags=re.IGNORECASE)
+
+    # NVL(x, y) → COALESCE(x, y)   [NVL funciona no SAP IQ mas padroniza]
+    sql = re.sub(r'\bNVL\s*\(', 'COALESCE(', sql, flags=re.IGNORECASE)
+
+    # IFNULL(x, y) → COALESCE(x, y)
+    sql = re.sub(r'\bIFNULL\s*\(', 'COALESCE(', sql, flags=re.IGNORECASE)
+
+    # GETDATE() → NOW()
+    sql = re.sub(r'\bGETDATE\s*\(\s*\)', 'NOW()', sql, flags=re.IGNORECASE)
+
+    # SYSDATE → NOW()
+    sql = re.sub(r'\bSYSDATE\b', 'NOW()', sql, flags=re.IGNORECASE)
+
+    # CURRENT_DATE → TODAY()   [SAP IQ prefere TODAY()]
+    sql = re.sub(r'\bCURRENT_DATE\b', 'TODAY()', sql, flags=re.IGNORECASE)
+
+    # LEN(x) → LENGTH(x)
+    sql = re.sub(r'\bLEN\s*\(', 'LENGTH(', sql, flags=re.IGNORECASE)
+
+    # CHARINDEX(substr, str) → LOCATE(str, substr)  — args invertidos no SAP IQ
+    sql = re.sub(
+        r'\bCHARINDEX\s*\(\s*([^,]+),\s*([^)]+)\)',
+        r'LOCATE(\2, \1)',
+        sql, flags=re.IGNORECASE
+    )
+
+    # STRING_AGG(col, sep) → LIST(col, sep)
+    sql = re.sub(r'\bSTRING_AGG\s*\(', 'LIST(', sql, flags=re.IGNORECASE)
+
+    # CONVERT(type, value) → CAST(value AS type)
+    sql = re.sub(
+        r'\bCONVERT\s*\(\s*(\w+)\s*,\s*([^)]+)\)',
+        r'CAST(\2 AS \1)',
+        sql, flags=re.IGNORECASE
+    )
+
+    # FORMAT(date, pattern) → DATEFORMAT(date, pattern)
+    sql = re.sub(r'\bFORMAT\s*\(', 'DATEFORMAT(', sql, flags=re.IGNORECASE)
+
+    # YEAR(x) → DATEPART(year, x)  — SAP IQ aceita YEAR() mas garante
+    # (deixa como está — SAP IQ 16 suporta YEAR/MONTH/DAY nativamente)
+
+    # TOP sem número (ex: "SELECT TOP BRAND_NAME") — não corrige, deixa o banco rejeitar
+    # ROWNUM → não suportado; não tem substituto simples sem ORDER BY
+    sql = re.sub(r'\bROWNUM\b', '1', sql, flags=re.IGNORECASE)  # fallback seguro
+
+    # ── 5. DOCTOR_NAME → FIRST_NM || ' ' || SURNM_NM ─────────────────────
+    # A IA costuma referenciar DOCTOR_NAME que não existe na tabela
+    sql = re.sub(
+        r'\bDOCTOR_NAME\b',
+        "(FIRST_NM || ' ' || SURNM_NM)",
+        sql, flags=re.IGNORECASE
+    )
+    # UPPER(DOCTOR_NAME) → UPPER(FIRST_NM || ' ' || SURNM_NM)
+    # (já coberto pela substituição acima, mas garante contexto de UPPER)
+
+    # ── 6. Alias de colunas inventadas pela IA → nomes reais ──────────────
     col_aliases = {
         # produto / remédio / medicamento / marca
-        r'\bPRODUTO\b':       'BRAND_NAME',
-        r'\bREMEDIO\b':       'BRAND_NAME',
-        r'\bMEDICAMENTO\b':   'BRAND_NAME',
-        r'\bMARCA\b':         'BRAND_NAME',
-        r'\bNOME_PRODUTO\b':  'BRAND_NAME',
-        r'\bNOME_COMERCIAL\b':'BRAND_NAME',
+        r'\bPRODUTO\b':        'BRAND_NAME',
+        r'\bREMEDIO\b':        'BRAND_NAME',
+        r'\bMEDICAMENTO\b':    'BRAND_NAME',
+        r'\bMARCA\b':          'BRAND_NAME',
+        r'\bNOME_PRODUTO\b':   'BRAND_NAME',
+        r'\bNOME_COMERCIAL\b': 'BRAND_NAME',
+        r'\bNOME_MARCA\b':     'BRAND_NAME',
         # molécula / princípio ativo
-        r'\bMOLECULA\b':              'COMBINED_MOLECULE_DESC',
-        r'\bPRINCIPIO_ATIVO\b':       'COMBINED_MOLECULE_DESC',
-        r'\bATIVO\b':                 'COMBINED_MOLECULE_DESC',
-        r'\bCOMPOSICAO\b':            'COMBINED_MOLECULE_DESC',
+        r'\bMOLECULA\b':           'COMBINED_MOLECULE_DESC',
+        r'\bPRINCIPIO_ATIVO\b':    'COMBINED_MOLECULE_DESC',
+        r'\bATIVO\b':              'COMBINED_MOLECULE_DESC',
+        r'\bCOMPOSICAO\b':         'COMBINED_MOLECULE_DESC',
+        r'\bSUBSTANCIA\b':         'COMBINED_MOLECULE_DESC',
+        r'\bCOMPONENTE\b':         'COMBINED_MOLECULE_DESC',
         # laboratório / fabricante
-        r'\bLABORATORIO\b':   'MANUFACTURER_DESC',
-        r'\bFABRICANTE\b':    'MANUFACTURER_DESC',
-        r'\bINDUSTRIA\b':     'MANUFACTURER_DESC',
-        r'\bLAB\b':           'MANUFACTURER_DESC',
+        r'\bLABORATORIO\b':  'MANUFACTURER_DESC',
+        r'\bFABRICANTE\b':   'MANUFACTURER_DESC',
+        r'\bINDUSTRIA\b':    'MANUFACTURER_DESC',
+        r'\bLAB\b':          'MANUFACTURER_DESC',
+        r'\bFARMACEUTICA\b': 'MANUFACTURER_DESC',
+        r'\bEMPRESA\b':      'MANUFACTURER_DESC',
         # receitas / prescrições
-        r'\bRECEITAS\b':      'RX_COUNT_TOTAL',
-        r'\bPRESCRICOES\b':   'RX_COUNT_TOTAL',
-        r'\bTOTAL_RX\b':      'RX_COUNT_TOTAL',
-        r'\bQTDE_RECEITAS\b': 'RX_COUNT_TOTAL',
-        # unidades
-        r'\bUNIDADES\b':      'DISPENSED_QTY_TOTAL',
-        r'\bQTDE_UNIDADES\b': 'DISPENSED_QTY_TOTAL',
+        r'\bRECEITAS\b':       'RX_COUNT_TOTAL',
+        r'\bTOTAL_RECEITAS\b': 'RX_COUNT_TOTAL',
+        r'\bTOTAL_RX\b':       'RX_COUNT_TOTAL',
+        r'\bQTDE_RECEITAS\b':  'RX_COUNT_TOTAL',
+        r'\bNUM_RECEITAS\b':   'RX_COUNT_TOTAL',
+        r'\bQT_RECEITAS\b':    'RX_COUNT_TOTAL',
+        # unidades dispensadas
+        r'\bUNIDADES\b':           'DISPENSED_QTY_TOTAL',
+        r'\bQTDE_UNIDADES\b':      'DISPENSED_QTY_TOTAL',
+        r'\bTOTAL_UNIDADES\b':     'DISPENSED_QTY_TOTAL',
+        r'\bQT_DISPENSADO\b':      'DISPENSED_QTY_TOTAL',
+        r'\bQTDE_DISPENSADA\b':    'DISPENSED_QTY_TOTAL',
         # médico / prescritor
-        r'\bMEDICO\b':        'DOCTOR_DISPLAY_CD',
-        r'\bPRESCRITOR\b':    'DOCTOR_DISPLAY_CD',
-        r'\bDOUTOR\b':        'DOCTOR_DISPLAY_CD',
-        r'\bCRM\b':           'DOCTOR_DISPLAY_CD',
+        r'\bMEDICO\b':     'DOCTOR_DISPLAY_CD',
+        r'\bPRESCRITOR\b': 'DOCTOR_DISPLAY_CD',
+        r'\bDOUTOR\b':     'DOCTOR_DISPLAY_CD',
+        r'\bCRM\b':        'DOCTOR_DISPLAY_CD',
+        r'\bNOME_MEDICO\b':'DOCTOR_DISPLAY_CD',
+        # nome do médico (partes)
+        r'\bNOME\b':       'FIRST_NM',
+        r'\bSOBRENOME\b':  'SURNM_NM',
         # cidade / estado
-        r'\bCIDADE\b':        'CITY_DESC',
-        r'\bESTADO\b':        'STATE_DESC',
-        r'\bUF\b':            'STATE_DESC',
-        # brick
-        r'\bBRICK\b':         'IMS_BRICK_DESC',
-        r'\bTERRITORIO\b':    'IMS_BRICK_DESC',
+        r'\bCIDADE\b':    'CITY_DESC',
+        r'\bMUNICIPIO\b': 'CITY_DESC',
+        r'\bESTADO\b':    'STATE_DESC',
+        r'\bUF\b':        'STATE_DESC',
+        # brick / território
+        r'\bBRICK\b':      'IMS_BRICK_DESC',
+        r'\bTERRITORIO\b': 'IMS_BRICK_DESC',
+        r'\bREGIAO\b':     'IMS_BRICK_DESC',
+        r'\bBAIRRO\b':     'IMS_BRICK_DESC',
         # período
-        r'\bPERIODO\b':       'PERIOD_CD',
-        r'\bMES\b':           'PERIOD_CD',
+        r'\bPERIODO\b':    'PERIOD_CD',
+        r'\bMES\b':        'PERIOD_CD',
+        r'\bDATA\b':       'PERIOD_CD',
+        r'\bANO_MES\b':    'PERIOD_CD',
         # canal
-        r'\bCANAL\b':         'CHANNEL_DESC',
+        r'\bCANAL\b':      'CHANNEL_DESC',
+        r'\bCANAL_VENDA\b':'CHANNEL_DESC',
     }
     for pattern, real_col in col_aliases.items():
         sql = re.sub(pattern, real_col, sql, flags=re.IGNORECASE)
