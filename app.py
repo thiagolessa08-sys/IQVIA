@@ -107,6 +107,20 @@ def adapt_sql(sql):
       6. Alias de colunas inventadas pela IA → nomes reais
     """
 
+    # ── 0a. Remove aspas duplas em identificadores e funções ──────────────
+    # A IA às vezes gera "SUM"(), "COUNT"(), "MANUFACTURER_DESC" etc.
+    # SAP IQ interpreta identificadores entre aspas duplas literalmente —
+    # "SUM" vira nome de coluna, não a função. Remover todas as aspas duplas
+    # é seguro pois nossos nomes de coluna não têm espaços nem palavras reservadas.
+    sql = sql.replace('"', '')
+
+    # ── 0b. COUNT() sem argumento → COUNT(*) ──────────────────────────────
+    sql = re.sub(r'\bCOUNT\s*\(\s*\)', 'COUNT(*)', sql, flags=re.IGNORECASE)
+
+    # ── 0c. Remove UPPER() desnecessário — banco é case-insensitive ────────
+    # UPPER(col) LIKE '%X%' → col LIKE '%X%'  (evita overhead de função)
+    sql = re.sub(r'\bUPPER\s*\(([^()]+)\)', r'\1', sql, flags=re.IGNORECASE)
+
     # ── 1. Alias de tabela ─────────────────────────────────────────────────
     sql = re.sub(r'\bprescricoes\b', TABLE_PRESC, sql, flags=re.IGNORECASE)
 
