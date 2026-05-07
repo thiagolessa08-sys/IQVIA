@@ -492,13 +492,34 @@ function fmtTooltip(v){
   return Number(Math.round(v)).toLocaleString('pt-BR');
 }
 
+function sanitizeChartJson(raw){
+  // Remove quebras de linha literais DENTRO de strings JSON
+  // (ex: título com \n no meio quebra o JSON.parse)
+  // Estratégia: substitui \n/\r apenas dentro de valores entre aspas duplas
+  return raw
+    .replace(/"((?:[^"\\]|\\.)*)"/g, (_,s) =>
+      '"' + s.replace(/[\r\n]+/g,' ').replace(/\s{2,}/g,' ').trim() + '"'
+    );
+}
+
 function parseMessage(text){
   const parts=[],re=/\[CHART\]([\s\S]*?)\[\/CHART\]/g;
   let last=0,m;
   while((m=re.exec(text))!==null){
     if(m.index>last)parts.push({type:'text',content:text.slice(last,m.index).trim()});
-    try{parts.push({type:'chart',data:JSON.parse(m[1].trim())});}
-    catch(e){parts.push({type:'text',content:m[0]});}
+    try{
+      const clean=sanitizeChartJson(m[1].trim());
+      parts.push({type:'chart',data:JSON.parse(clean)});
+    }catch(e){
+      // Se ainda falhar, tenta parse mais agressivo (remove todos os \n do bloco)
+      try{
+        const fallback=m[1].trim().replace(/[\r\n]+/g,' ');
+        parts.push({type:'chart',data:JSON.parse(fallback)});
+      }catch(e2){
+        // JSON irrecuperável — mostra como texto
+        parts.push({type:'text',content:m[0]});
+      }
+    }
     last=re.lastIndex;
   }
   const tail=text.slice(last).trim();
