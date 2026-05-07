@@ -158,18 +158,30 @@ def _api_call(sql):
 
     return []
 
+def _clean_rows(rows):
+    """Remove \r, \n e espaços extras de todos os campos string dos resultados."""
+    cleaned = []
+    for row in rows:
+        new_row = {}
+        for k, v in row.items():
+            if isinstance(v, str):
+                v = ' '.join(v.split())   # colapsa qualquer whitespace (\n \r \t espaços múltiplos)
+            new_row[k] = v
+        cleaned.append(new_row)
+    return cleaned
+
 def query(sql, params=()):
     final = adapt_sql(_inline_params(sql, params))
     if USE_DIRECT:
-        return _direct_query(final)
+        return _clean_rows(_direct_query(final))
     if USE_HTTP_API:
-        return _api_call(final)
+        return _clean_rows(_api_call(final))
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
     cur = con.execute(sql, params)
     rows = [dict(r) for r in cur.fetchall()]
     con.close()
-    return rows
+    return _clean_rows(rows)
 
 def execute(sql, params=()):
     final = adapt_sql(_inline_params(sql, params))
