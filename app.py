@@ -1200,9 +1200,12 @@ def chat():
     catalog_ctx = _search_catalog(last_user_msg)
     system_final = base_system + catalog_ctx
 
+    # Fix 2 — trunca histórico para as últimas 6 mensagens (reduz tokens acumulados)
+    msgs = msgs[-6:] if len(msgs) > 6 else msgs
+
     call = {
         "model":      payload.get("model", "claude-haiku-4-5-20251001"),
-        "max_tokens": payload.get("max_tokens", 1800),
+        "max_tokens": payload.get("max_tokens", 1024),
         "system":     system_final,
         "tools":      [query_tool],
         "messages":   msgs
@@ -1212,10 +1215,28 @@ def chat():
     tool_invoked = False
 
     for iteration in range(6):
-        resp = requests.post("https://api.anthropic.com/v1/messages",
-                             headers=hdrs, json=call, timeout=90)
+        # Fix 3 — retry automático em rate limit (429)
+        for attempt in range(3):
+            resp = requests.post("https://api.anthropic.com/v1/messages",
+                                 headers=hdrs, json=call, timeout=90)
+            if resp.status_code == 429:
+                retry_after = int(resp.headers.get("retry-after", 15))
+                wait = min(retry_after, 20)   # espera no máx 20s
+                print(f"[chat] Rate limit 429 — aguardando {wait}s (tentativa {attempt+1}/3)")
+                time.sleep(wait)
+                continue
+            break   # sai do loop de retry se não for 429
+
+        if resp.status_code == 429:
+            # Esgotou as 3 tentativas — devolve erro amigável
+            return jsonify({
+                "error": "rate_limit",
+                "message": "Muitas consultas simultâneas. Aguarde alguns segundos e tente novamente."
+            }), 429
+
         if resp.status_code != 200:
             return jsonify(resp.json()), resp.status_code
+
         data    = resp.json()
         stop    = data.get("stop_reason")
         content = data.get("content", [])
@@ -1230,17 +1251,19 @@ def chat():
                     try:
                         rows = safe_sql(sql)
                         queries_run.append({"sql": sql, "linhas": len(rows)})
-                        payload_res = json.dumps({"linhas": len(rows), "dados": rows},
-                                                 ensure_ascii=False, default=str)
+                        # Fix 1 — limita a 30 linhas no payload da tool (reduz tokens)
+                        payload_res = json.dumps(
+                            {"linhas": len(rows), "dados": rows[:30]},
+                            ensure_ascii=False, default=str
+                        )
                     except Exception as e:
                         payload_res = json.dumps({"erro": str(e)})
                     results.append({"type": "tool_result", "tool_use_id": blk["id"], "content": payload_res})
             call["messages"].append({"role": "user", "content": results})
 
         else:
-            # ── Validação: IA respondeu sem consultar o banco ──────────────
+            # Validação: IA respondeu sem consultar o banco
             if not tool_invoked and iteration == 0:
-                # Safety net: força uma query antes de responder
                 call["messages"].append({"role": "assistant", "content": content})
                 call["messages"].append({
                     "role": "user",
@@ -1250,7 +1273,7 @@ def chat():
                         "Não responda com base em conhecimento geral."
                     )
                 })
-                continue  # faz mais uma iteração
+                continue
 
             if queries_run:
                 data["queries_executed"] = queries_run

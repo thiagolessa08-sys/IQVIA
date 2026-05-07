@@ -751,8 +751,15 @@ async function sendMsg(textOverride){
     }
     hideTyping();
     if(!res.ok||data.type==='error'||data.error){
-      const errMsg=typeof data.error==='string'?data.error:data.error?.message||`Erro ${res.status}`;
-      appendMsg('ai',`⚠ ${errMsg}`);
+      let errMsg;
+      if(res.status===429||data.error==='rate_limit'){
+        errMsg='⏳ Muitas consultas simultâneas — aguarde alguns segundos e tente novamente.';
+      } else if(res.status===529||data.error?.type==='overloaded_error'){
+        errMsg='⏳ Serviço temporariamente sobrecarregado. Tente novamente em instantes.';
+      } else {
+        errMsg='⚠ '+(data.message||data.error?.message||`Erro ${res.status}: tente novamente.`);
+      }
+      appendMsg('ai',errMsg);
       chatHistory.pop();isTyping=false;document.getElementById('chatSendBtn').disabled=false;input.focus();return;
     }
     const reply=data.content?.filter(b=>b.type==='text').map(b=>b.text).join('')||'';
