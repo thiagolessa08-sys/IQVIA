@@ -96,13 +96,75 @@ def _direct_query(sql):
                 return []
 
 def adapt_sql(sql):
-    """Redireciona 'prescricoes' → tabela real e converte LIMIT→TOP."""
+    """Redireciona 'prescricoes' → tabela real, corrige sintaxe SAP IQ e
+    normaliza nomes de colunas inventados pela IA para os nomes reais."""
+
+    # 1. Alias de tabela
     sql = re.sub(r'\bprescricoes\b', TABLE_PRESC, sql)
+
+    # 2. LIMIT → TOP
     m = re.search(r'\bLIMIT\s+(\d+)\s*;?\s*$', sql.strip(), re.IGNORECASE)
     if m:
         n   = m.group(1)
         sql = re.sub(r'\bLIMIT\s+\d+\s*;?\s*$', '', sql.strip(), flags=re.IGNORECASE).rstrip()
         sql = re.sub(r'^(\s*SELECT\s)', f'SELECT TOP {n} ', sql, flags=re.IGNORECASE, count=1)
+
+    # 3. Corrige "SELECT TOP n DISTINCT" → "SELECT DISTINCT TOP n"
+    #    SAP IQ exige DISTINCT antes de TOP
+    sql = re.sub(
+        r'\bSELECT\s+TOP\s+(\d+)\s+DISTINCT\b',
+        r'SELECT DISTINCT TOP \1',
+        sql, flags=re.IGNORECASE
+    )
+
+    # 4. Normaliza nomes de colunas inventados pela IA → nomes reais da tabela
+    col_aliases = {
+        # produto / remédio / medicamento / marca
+        r'\bPRODUTO\b':       'BRAND_NAME',
+        r'\bREMEDIO\b':       'BRAND_NAME',
+        r'\bMEDICAMENTO\b':   'BRAND_NAME',
+        r'\bMARCA\b':         'BRAND_NAME',
+        r'\bNOME_PRODUTO\b':  'BRAND_NAME',
+        r'\bNOME_COMERCIAL\b':'BRAND_NAME',
+        # molécula / princípio ativo
+        r'\bMOLECULA\b':              'COMBINED_MOLECULE_DESC',
+        r'\bPRINCIPIO_ATIVO\b':       'COMBINED_MOLECULE_DESC',
+        r'\bATIVO\b':                 'COMBINED_MOLECULE_DESC',
+        r'\bCOMPOSICAO\b':            'COMBINED_MOLECULE_DESC',
+        # laboratório / fabricante
+        r'\bLABORATORIO\b':   'MANUFACTURER_DESC',
+        r'\bFABRICANTE\b':    'MANUFACTURER_DESC',
+        r'\bINDUSTRIA\b':     'MANUFACTURER_DESC',
+        r'\bLAB\b':           'MANUFACTURER_DESC',
+        # receitas / prescrições
+        r'\bRECEITAS\b':      'RX_COUNT_TOTAL',
+        r'\bPRESCRICOES\b':   'RX_COUNT_TOTAL',
+        r'\bTOTAL_RX\b':      'RX_COUNT_TOTAL',
+        r'\bQTDE_RECEITAS\b': 'RX_COUNT_TOTAL',
+        # unidades
+        r'\bUNIDADES\b':      'DISPENSED_QTY_TOTAL',
+        r'\bQTDE_UNIDADES\b': 'DISPENSED_QTY_TOTAL',
+        # médico / prescritor
+        r'\bMEDICO\b':        'DOCTOR_DISPLAY_CD',
+        r'\bPRESCRITOR\b':    'DOCTOR_DISPLAY_CD',
+        r'\bDOUTOR\b':        'DOCTOR_DISPLAY_CD',
+        r'\bCRM\b':           'DOCTOR_DISPLAY_CD',
+        # cidade / estado
+        r'\bCIDADE\b':        'CITY_DESC',
+        r'\bESTADO\b':        'STATE_DESC',
+        r'\bUF\b':            'STATE_DESC',
+        # brick
+        r'\bBRICK\b':         'IMS_BRICK_DESC',
+        r'\bTERRITORIO\b':    'IMS_BRICK_DESC',
+        # período
+        r'\bPERIODO\b':       'PERIOD_CD',
+        r'\bMES\b':           'PERIOD_CD',
+        # canal
+        r'\bCANAL\b':         'CHANNEL_DESC',
+    }
+    for pattern, real_col in col_aliases.items():
+        sql = re.sub(pattern, real_col, sql, flags=re.IGNORECASE)
+
     return sql
 
 def _inline_params(sql, params):
