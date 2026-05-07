@@ -268,9 +268,60 @@ def cache_set(key, data):
 def cache_clear():
     _cache.clear()
 
+# ── Catálogo de metadados (BRAND_NAME × MOLECULE × MANUFACTURER) ─────────
+_catalog: list[dict] = []   # populado pelo prewarm em background
+
+def _search_catalog(user_text: str, max_hits: int = 6) -> str:
+    """
+    Busca no catálogo em memória por termos presentes na pergunta do usuário.
+    Retorna string formatada para injetar no system prompt como contexto.
+    """
+    if not _catalog:
+        return ""
+    words = re.findall(r'[A-Za-zÀ-ÿ]{4,}', user_text.upper())
+    if not words:
+        return ""
+    seen, hits = set(), []
+    for entry in _catalog:
+        brand    = (entry.get("brand")    or "").upper()
+        molecule = (entry.get("molecule") or "").upper()
+        mfr      = (entry.get("mfr")      or "").upper()
+        key = brand
+        if key in seen:
+            continue
+        if any(w in brand or w in molecule or w in mfr for w in words):
+            seen.add(key)
+            hits.append(entry)
+            if len(hits) >= max_hits:
+                break
+    if not hits:
+        return ""
+    lines = "\n".join(
+        f'• BRAND_NAME="{h["brand"]}" | MOLÉCULA="{h["molecule"]}" | LABORATÓRIO="{h["mfr"]}"'
+        for h in hits
+    )
+    return (
+        "\n\n━━ REFERÊNCIA DO BANCO (use estes valores exatos nas queries) ━━\n"
+        + lines
+    )
+
 # Inicializa e carrega ao subir o servidor
 # Ordem: L0 arquivo JSON → L1 memória → prewarm SAP IQ (só se necessário)
 _load_static_files()   # carrega JSON do repo em <1ms, sem rede
+
+# Tenta carregar catálogo do disco (se já existir de run anterior)
+def _load_catalog_from_disk():
+    global _catalog
+    cat_path = os.path.join(os.path.dirname(__file__), "data", "catalog.json")
+    if os.path.exists(cat_path) and not _catalog:
+        try:
+            with open(cat_path, encoding="utf-8-sig") as cf:
+                _catalog = json.load(cf)
+            print(f"[catalog] Carregado do disco: {len(_catalog)} produtos.")
+        except Exception as e:
+            print(f"[catalog] Erro ao carregar catalog.json: {e}")
+
+_load_catalog_from_disk()
 
 # ── Auth ──────────────────────────────────────────────────────────────────
 USERS = {
@@ -717,6 +768,41 @@ def _prewarm_cache():
                     except Exception as e:
                         print(f"[prewarm] Ranking falhou: {e}")
 
+                # ── Catálogo de metadados para o Chat IA ──────────────────
+                try:
+                    print("[prewarm] Construindo catálogo de produtos...")
+                    cat_rows = query("""
+                        SELECT TOP 2000
+                               BRAND_NAME              AS brand,
+                               COMBINED_MOLECULE_DESC  AS molecule,
+                               MANUFACTURER_DESC       AS mfr,
+                               SUM(RX_COUNT_TOTAL)     AS total_rx
+                        FROM prescricoes
+                        WHERE BRAND_NAME IS NOT NULL
+                          AND COMBINED_MOLECULE_DESC IS NOT NULL
+                          AND MANUFACTURER_DESC IS NOT NULL
+                        GROUP BY BRAND_NAME, COMBINED_MOLECULE_DESC, MANUFACTURER_DESC
+                        ORDER BY SUM(RX_COUNT_TOTAL) DESC
+                    """)
+                    global _catalog
+                    _catalog = [r for r in cat_rows if r.get("brand")]
+                    # Salva em disco para reload sem query
+                    cat_path = os.path.join(os.path.dirname(__file__), "data", "catalog.json")
+                    with open(cat_path, "w", encoding="utf-8") as cf:
+                        json.dump(_catalog, cf, ensure_ascii=False, default=str)
+                    print(f"[prewarm] Catálogo OK: {len(_catalog)} produtos únicos.")
+                except Exception as e:
+                    print(f"[prewarm] Catálogo falhou: {e}")
+                    # Tenta carregar catalog.json existente do disco
+                    try:
+                        cat_path = os.path.join(os.path.dirname(__file__), "data", "catalog.json")
+                        if os.path.exists(cat_path):
+                            with open(cat_path, encoding="utf-8-sig") as cf:
+                                _catalog = json.load(cf)
+                            print(f"[prewarm] Catálogo carregado do disco: {len(_catalog)} itens.")
+                    except Exception:
+                        pass
+
         except Exception as e:
             print(f"[prewarm] Erro geral: {e}")
     threading.Thread(target=_run, daemon=True).start()
@@ -1083,19 +1169,15 @@ def chat():
         "name": "query_database",
         "description": (
             f"Executa SQL SELECT na tabela {TABLE_PRESC} (Sybase IQ 16). "
-            "Use TOP n em vez de LIMIT n. Use || para concatenar strings. "
-            "Colunas disponíveis: "
-            "DOCTOR_DISPLAY_CD (CRM do médico), "
-            "FIRST_NM (primeiro nome do médico), SURNM_NM (sobrenome do médico), "
-            "PERIOD_CD (período inteiro YYYYMM), "
-            "CHANNEL_DESC (canal de venda), "
-            "IMS_BRICK_DESC (brick geográfico IMS), "
+            "ATENÇÃO — distinção crítica de colunas: "
+            "BRAND_NAME = nome COMERCIAL da MARCA (ex: VONAU, LEXAPRO, GLIFAGE) — NÃO é o laboratório; "
+            "MANUFACTURER_DESC = LABORATÓRIO/FABRICANTE (ex: Biolab-Sanus Farma, EMS, Aché) — NÃO é a marca; "
+            "COMBINED_MOLECULE_DESC = molécula/princípio ativo (ex: Ondansetrona, Escitalopram, Metformina). "
+            "Use TOP n (não LIMIT). Use UPPER()+LIKE para buscas por nome. "
+            "Outras colunas: DOCTOR_DISPLAY_CD (CRM), FIRST_NM, SURNM_NM (nome médico), "
+            "PERIOD_CD (YYYYMM), CHANNEL_DESC (canal), IMS_BRICK_DESC (brick IMS), "
             "CITY_DESC (cidade), STATE_DESC (estado), "
-            "MANUFACTURER_DESC (laboratório/fabricante), "
-            "BRAND_NAME (marca do produto), "
-            "COMBINED_MOLECULE_DESC (molécula/princípio ativo), "
-            "RX_COUNT_TOTAL (quantidade de receitas), "
-            "DISPENSED_QTY_TOTAL (quantidade de medicamentos dispensados)."
+            "RX_COUNT_TOTAL (receitas), DISPENSED_QTY_TOTAL (unidades dispensadas)."
         ),
         "input_schema": {
             "type": "object",
@@ -1103,16 +1185,33 @@ def chat():
             "required": ["sql"]
         }
     }
+
     msgs = list(payload.get("messages", []))
+
+    # ── Injeta contexto do catálogo dinâmico no system prompt ─────────────
+    base_system = payload.get("system", "")
+    # Extrai última mensagem do usuário para busca no catálogo
+    last_user_msg = ""
+    for m in reversed(msgs):
+        if m.get("role") == "user":
+            c = m.get("content", "")
+            last_user_msg = c if isinstance(c, str) else ""
+            break
+    catalog_ctx = _search_catalog(last_user_msg)
+    system_final = base_system + catalog_ctx
+
     call = {
         "model":      payload.get("model", "claude-haiku-4-5-20251001"),
         "max_tokens": payload.get("max_tokens", 1800),
-        "system":     payload.get("system", ""),
+        "system":     system_final,
         "tools":      [query_tool],
         "messages":   msgs
     }
-    queries_run = []
-    for _ in range(6):
+
+    queries_run  = []
+    tool_invoked = False
+
+    for iteration in range(6):
         resp = requests.post("https://api.anthropic.com/v1/messages",
                              headers=hdrs, json=call, timeout=90)
         if resp.status_code != 200:
@@ -1120,7 +1219,9 @@ def chat():
         data    = resp.json()
         stop    = data.get("stop_reason")
         content = data.get("content", [])
+
         if stop == "tool_use":
+            tool_invoked = True
             call["messages"].append({"role": "assistant", "content": content})
             results = []
             for blk in content:
@@ -1135,10 +1236,26 @@ def chat():
                         payload_res = json.dumps({"erro": str(e)})
                     results.append({"type": "tool_result", "tool_use_id": blk["id"], "content": payload_res})
             call["messages"].append({"role": "user", "content": results})
+
         else:
+            # ── Validação: IA respondeu sem consultar o banco ──────────────
+            if not tool_invoked and iteration == 0:
+                # Safety net: força uma query antes de responder
+                call["messages"].append({"role": "assistant", "content": content})
+                call["messages"].append({
+                    "role": "user",
+                    "content": (
+                        "Você ainda não consultou o banco de dados. "
+                        "Execute uma query usando query_database antes de responder. "
+                        "Não responda com base em conhecimento geral."
+                    )
+                })
+                continue  # faz mais uma iteração
+
             if queries_run:
                 data["queries_executed"] = queries_run
             return jsonify(data), resp.status_code
+
     return jsonify(data), 200
 
 # ── Admin: carga de dados ─────────────────────────────────────────────────
