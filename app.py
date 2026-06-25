@@ -22,11 +22,24 @@ _IQ_USER = os.environ.get("IQ_USER", "iaapi")
 _IQ_PASS = os.environ.get("IQ_PASSWORD", "i@sql2025HML")
 USE_DIRECT = False  # pymssql incompatível com SAP IQ — usar HTTP API
 
-# ── Agente Java via Cloudflare Tunnel ────────────────────────────────────
-# URL muda a cada reinício do tunnel — atualizar AGENT_URL no Railway
-_AGENT_URL     = os.environ.get("AGENT_URL", "https://membrane-hdtv-qui-casual.trycloudflare.com")
+# ── Agente Java via Cloudflare Tunnel (fixo) ─────────────────────────────
+# Túnel fixo com Cloudflare Access (service token) — não muda mais a cada reinício
+_AGENT_URL     = os.environ.get("AGENT_URL", "https://hml.sqltech.app")
 _AGENT_API_KEY = os.environ.get("AGENT_API_KEY", "")
+# Cloudflare Access — service token (CF-Access-Client-Id / CF-Access-Client-Secret)
+_CF_CLIENT_ID     = os.environ.get("CF_ACCESS_CLIENT_ID", "")
+_CF_CLIENT_SECRET = os.environ.get("CF_ACCESS_CLIENT_SECRET", "")
 USE_HTTP_API   = True  # sempre usa o agente Java
+
+def _agent_headers(extra=None):
+    """Monta headers de autenticação para o agente Java atrás do Cloudflare Access."""
+    h = dict(extra or {})
+    if _CF_CLIENT_ID and _CF_CLIENT_SECRET:
+        h["CF-Access-Client-Id"]     = _CF_CLIENT_ID
+        h["CF-Access-Client-Secret"] = _CF_CLIENT_SECRET
+    if _AGENT_API_KEY:
+        h["X-API-Key"] = _AGENT_API_KEY
+    return h
 
 # Certificado de cliente mTLS (sqlsrv50.pfx, senha 1234)
 _PFX_PATH    = os.path.join(os.path.dirname(__file__), "sqlsrv50.pfx")
@@ -300,9 +313,7 @@ def _inline_params(sql, params):
 
 def _api_call(sql):
     """Envia SQL ao Java Agent via Cloudflare Tunnel e retorna lista de dicts."""
-    hdrs = {"Content-Type": "application/json"}
-    if _AGENT_API_KEY:
-        hdrs["X-API-Key"] = _AGENT_API_KEY
+    hdrs = _agent_headers({"Content-Type": "application/json"})
     resp = requests.post(
         f"{_AGENT_URL}/query",
         json={"sql": sql, "limit": 500},
@@ -1552,9 +1563,10 @@ def test_db():
     import time
     result = {
         "config": {
-            "agent_url":     _AGENT_URL,
-            "api_key_set":   bool(_AGENT_API_KEY),
-            "table":         TABLE_PRESC,
+            "agent_url":       _AGENT_URL,
+            "api_key_set":     bool(_AGENT_API_KEY),
+            "cf_access_set":   bool(_CF_CLIENT_ID and _CF_CLIENT_SECRET),
+            "table":           TABLE_PRESC,
         },
         "steps": {}
     }
@@ -1562,7 +1574,7 @@ def test_db():
     # 1. Health check do agent
     t0 = time.time()
     try:
-        hdrs = {"X-API-Key": _AGENT_API_KEY} if _AGENT_API_KEY else {}
+        hdrs = _agent_headers()
         h = requests.get(f"{_AGENT_URL}/health", headers=hdrs, verify=True, timeout=10)
         result["steps"]["1_health"] = {"ok": h.status_code == 200, "status": h.status_code,
                                        "resposta": h.json() if h.headers.get("content-type","").startswith("application/json") else h.text,
@@ -1600,7 +1612,7 @@ def test_db():
     # 5. Colunas da tabela via /schema
     t0 = time.time()
     try:
-        hdrs = {"X-API-Key": _AGENT_API_KEY} if _AGENT_API_KEY else {}
+        hdrs = _agent_headers()
         sr = requests.get(f"{_AGENT_URL}/schema/PBS_AI_ANALYTICS",
                           headers=hdrs, verify=True, timeout=15)
         result["steps"]["5_schema"] = {"ok": sr.status_code == 200,
